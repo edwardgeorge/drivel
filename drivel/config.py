@@ -58,6 +58,15 @@ class Config(dict):
         else:
             raise ValueError()
 
+    def sections(self):
+        return self.keys()
+
+    def sections_in_ns(self, ns):
+        for key in self.iterkeys():
+            _ns, _, name = key.partition(':')
+            if _ns == ns and name:
+                yield name, self.get(key)
+
     def __getattr__(self, key):
         try:
             return self[key]
