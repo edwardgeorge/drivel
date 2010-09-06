@@ -1,7 +1,7 @@
 from __future__ import with_statement
 import ConfigParser
 
-from drivel.utils import dotted_import
+from drivel.utils.importing import dotted_import
 
 
 class Config(dict):
