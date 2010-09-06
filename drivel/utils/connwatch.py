@@ -32,13 +32,16 @@ def connectionwatcher(sock, proc_weakref, *exc_args):
                 data = sock.recv(4096)
             if not data:
                 kill()
+                return
         except socket.error, e:
             if e[0] in enums:
                 kill()
+                return
         except IOError, e:
             if e.errno in enums:
                 kill()
+                return
 
 
 def spawn(sock, proc, *exc_args):
-    eventlet.spawn(connectionwatcher, sock, proc, *exc_args)
+    return eventlet.spawn(connectionwatcher, sock, proc, *exc_args)
