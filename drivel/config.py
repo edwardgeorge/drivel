@@ -55,7 +55,7 @@ class Config(dict):
 
         """
         default, _, _ = key.partition(':')
-        result = Config()
+        result = Config({})
         result.update(self.get(default, Config({})))
         result.update(self.get(key, Config({})))
         return result
