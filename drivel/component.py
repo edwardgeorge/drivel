@@ -15,6 +15,7 @@ class Component(object):
 
     def __init__(self, server, name=None):
         self.server = server
+        self.registered_name = name
         self._mqueue = queue.Queue()
         assert self.subscription is not None
         self.server.subscribe(self.subscription, self._mqueue)
