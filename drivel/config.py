@@ -47,6 +47,19 @@ class Config(dict):
         else:
             return super(Config, self).get(key, default)
 
+    def section_with_overrides(self, key):
+        """Takes a key like base:section
+
+        and the value of base updated with the values
+        from the full key.
+
+        """
+        default, _, _ = key.partition(':')
+        result = Config()
+        result.update(self.get(default, Config()))
+        result.update(self.get(key, Config()))
+        return result
+
     def getint(self, key, default=None, return_none=False):
         val = self.get(key, default)
         if val is None and return_none:
