@@ -56,8 +56,8 @@ class Config(dict):
         """
         default, _, _ = key.partition(':')
         result = Config()
-        result.update(self.get(default, Config()))
-        result.update(self.get(key, Config()))
+        result.update(self.get(default, Config({})))
+        result.update(self.get(key, Config({})))
         return result
 
     def getint(self, key, default=None, return_none=False):
