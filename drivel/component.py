@@ -10,8 +10,8 @@ class CancelOperation(Exception):
 
 class Component(object):
     subscription = None
-    asynchronous = True # spawn a coroutine for each message
-    message_pool_size = 1000 # set to use a pool rather than coroutines
+    asynchronous = True  # spawn a coroutine for each message
+    message_pool_size = 1000  # set to use a pool rather than coroutines
 
     def __init__(self, server, name=None):
         self.server = server
@@ -30,7 +30,8 @@ class Component(object):
             self._execute = self._coropool.spawn
         else:
             self._coropool = eventlet.GreenPool(size=1)
-            self._execute = lambda func, *args: self._coropool.spawn(func, *args).wait()
+            self._execute = lambda func, *args: self._coropool.spawn(func,
+                *args).wait()
         self.log = partial(self.server.log, self.__class__.__name__)
 
     @property
@@ -78,7 +79,8 @@ class Component(object):
         return stats
 
     def _dothrow(self, gt, cgt):
-        #print 'throwing cancel from:%s to:%s current:%s' % (gt, cgt, greenthread.getcurrent())
+        #print 'throwing cancel from:%s to:%s current:%s' % (gt, cgt,
+        #    greenthread.getcurrent())
         if isinstance(cgt, greenthread.GreenThread):
             cgt.kill(CancelOperation, None, None)
         else:
@@ -107,12 +109,12 @@ class WSGIComponent(Component):
             for m in self.urlmapping:
                 server.add_wsgimapping(m, self.subscription)
         elif isinstance(self.urlmapping, dict):
-            for k,v in self.urlmapping.iteritems():
+            for k, v in self.urlmapping.iteritems():
                 if isinstance(v, (tuple, list)):
                     for i in v:
                         server.add_wsgimapping((k, i), self.subscription)
                 else:
-                    server.add_wsgimapping((k,v), self.subscription)
+                    server.add_wsgimapping((k, v), self.subscription)
         else:
             raise TypeError('Unknown type for WSGIComponent.urlmapping')
 
@@ -136,5 +138,3 @@ class WSGIComponent(Component):
             'processed_messages': self.processed_messages,
         })
         return stats
-
-
