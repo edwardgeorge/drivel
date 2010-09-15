@@ -1,4 +1,4 @@
-from eventlet.queue import Queue
+from eventlet.queue import Queue, Empty
 
 class Messaging(object):
     def __init__(self, queue=None):
@@ -7,7 +7,10 @@ class Messaging(object):
         self.queue = queue
 
     def wait(self, timeout=None):
-        return self.queue.get(timeout=timeout)
+        try:
+            return self.queue.get(timeout=timeout)
+        except Empty, e:
+            return None
 
     def send(self, data):
         self.queue.put(data)
