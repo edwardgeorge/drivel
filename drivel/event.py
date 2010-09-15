@@ -2,7 +2,8 @@ import functools
 import uuid
 import weakref
 
-from eventlet import coros
+from eventlet.event import Event
+from eventlet.semaphore import Semaphore
 
 class remoteevent(object):
     def __init__(self, id, procid, publisher, semaphore):
@@ -28,7 +29,7 @@ class EventManager(object):
         self.events = {}
         self.procid = procid
         self.publisher = publisher
-        self.pubsem = coros.semaphore(1)
+        self.pubsem = Semaphore(1)
 
     def _remove_event(self, id, val):
         if self.events[id] is val:
@@ -37,7 +38,7 @@ class EventManager(object):
     def create(self):
         id = uuid.uuid4().hex
         remove = functools.partial(self._remove_event, id)
-        event = coros.event()
+        event = Event()
         self.events[id] = weakref.proxy(event, remove)
         event.id = id
         return event, id
