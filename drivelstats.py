@@ -21,12 +21,17 @@ def dataunfold(root, data):
         yield root, safestr(data)
 
 
-def drivelstats(url):
+def getdata(url):
     httpclient = httplib2.Http()
+    head, resp = httpclient.request(url, 'GET')
+    assert head.status == 200
+    data = simplejson.loads(resp)
+    return data
+
+
+def drivelstats(url):
     try:
-        head, resp = httpclient.request(url, 'GET')
-        assert head.status == 200
-        data = simplejson.loads(resp)
+        data = getdata(url)
     except Exception, e:
         print 'ERROR %s: %s' % (url, e)
     else:
