@@ -13,6 +13,9 @@ class Messaging(object):
         self._len = None
         self._bsz = 4096
 
+    def fileno(self):
+        return self.sock.fileno()
+
     def wait(self, timeout=None):
         timer = eventlet.Timeout(timeout) if timeout is not None else None
         try:
