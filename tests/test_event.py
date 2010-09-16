@@ -13,9 +13,9 @@ def test():
     ret.send('foo')
     assert publisher.send.called
     args, kwargs = publisher.send.call_args
-    rid = args[0]['envelopeto']
+    rid = args[1]['envelopeto']
     assert rid == eid
-    man.return_(rid, args[0]['data'])
+    man.return_(rid, args[1]['data'])
     assert evt.ready()
     assert evt.wait() == 'foo'
 
@@ -29,7 +29,7 @@ def test_exception():
     ret.send(exc=KeyError())
     assert publisher.send.called
     args, kwargs = publisher.send.call_args
-    rid = args[0]['envelopeto']
-    man.return_(rid, args[0]['data'])
+    rid = args[1]['envelopeto']
+    man.return_(rid, args[1]['data'])
     assert evt.ready()
     evt.wait()

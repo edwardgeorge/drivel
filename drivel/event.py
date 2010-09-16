@@ -19,9 +19,7 @@ class remoteevent(object):
             'data': data,
         }
         self.pubsem.acquire()
-        self.publisher.send(message,
-            routing_key='%s.%s' % (self.procid, self.id),
-            serializer = 'pickle')
+        self.publisher.send('_return', message)
         self.pubsem.release()
 
 class EventManager(object):
