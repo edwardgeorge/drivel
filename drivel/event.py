@@ -49,7 +49,7 @@ class EventManager(object):
 
     def returner_for(self, origin):
         if isinstance(origin, (list, tuple)):
-            if origin[0] != self.id:
+            if origin[0] != self.procid:
                 return self.getreturner(origin[0], origin[1])
             origin = origin[1]
         return self.events[origin]
