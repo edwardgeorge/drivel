@@ -50,5 +50,3 @@ class EventManager(object):
                 result=message.get('result'),
                 exc=message.get('exc')
             )
-
-
