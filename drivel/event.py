@@ -41,8 +41,8 @@ class EventManager(object):
         event.id = id
         return event, id
 
-    def getreturner(self, id):
-        return remoteevent(id, self.procid, self.publisher, self.pubsem)
+    def getreturner(self, origin, id):
+        return remoteevent(id, origin, self.publisher, self.pubsem)
 
     def return_(self, id, message):
         if id in self.events:

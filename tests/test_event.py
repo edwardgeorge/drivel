@@ -9,7 +9,7 @@ def test():
     evt, eid = man.create()
     assert not evt.ready()
 
-    ret = man.getreturner(eid)
+    ret = man.getreturner('dummy', eid)
     ret.send('foo')
     assert publisher.send.called
     args, kwargs = publisher.send.call_args
@@ -25,7 +25,7 @@ def test_exception():
     man = EventManager('dummy', publisher)
     evt, eid = man.create()
 
-    ret = man.getreturner(eid)
+    ret = man.getreturner('dummy', eid)
     ret.send(exc=KeyError())
     assert publisher.send.called
     args, kwargs = publisher.send.call_args
