@@ -5,6 +5,9 @@ import weakref
 from eventlet.event import Event
 from eventlet.semaphore import Semaphore
 
+RETURN_SUB = '_return'
+
+
 class remoteevent(object):
     def __init__(self, id, procid, publisher, semaphore):
         self.id = id
@@ -19,7 +22,7 @@ class remoteevent(object):
             'data': data,
         }
         self.pubsem.acquire()
-        self.publisher.send('_return', message)
+        self.publisher.send(RETURN_SUB, message)
         self.pubsem.release()
 
 class EventManager(object):
@@ -44,9 +47,19 @@ class EventManager(object):
     def getreturner(self, origin, id):
         return remoteevent(id, origin, self.publisher, self.pubsem)
 
+    def returner_for(self, origin):
+        if isinstance(origin, (list, tuple)):
+            if origin[0] != self.id:
+                return self.getreturner(origin[0], origin[1])
+            origin = origin[1]
+        return self.events[origin]
+
     def return_(self, id, message):
         if id in self.events:
             self.events[id].send(
                 result=message.get('result'),
                 exc=message.get('exc')
             )
+
+    def __len__(self):
+        return len(self.events)
