@@ -1,7 +1,9 @@
 import eventlet
 from eventlet.green import socket
+import mock
 
 from drivel.messaging.connections import Connections
+from drivel.messaging.connections import HEARTBEAT
 
 
 def test():
@@ -22,3 +24,25 @@ def test():
         sid, ret = c1.get()
     assert sid == 'dummy2'
     assert ret == 'back atcha'
+
+def test_heartbeat():
+    conns = [mock.Mock() for i in range(10)]
+    c = Connections('dummy')
+    for i in conns:
+        c._add(i, id(i))
+
+    c.send_heartbeat()
+    for i in conns:
+        assert i.send.called
+        i.send.assert_called_with(('dummy', HEARTBEAT))
+
+def test_send_to_all():
+    conns = [mock.Mock() for i in range(10)]
+    c = Connections('dummy')
+    for i in conns:
+        c._add(i, id(i))
+
+    c.send_heartbeat()
+    for i in conns:
+        assert i.send.called
+        i.send.assert_called_with(('dummy', HEARTBEAT))

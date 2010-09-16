@@ -27,10 +27,14 @@ class Connections(object):
 
     def add(self, sock, target=None):
         msgn = Messaging(sock)
+        self._add(msgn, target)
+
+    def _add(self, msgn, target=None):
         self.sockets.append(msgn)
         if target is not None:
             self.targets[target] = msgn
-        self._event.send(True)
+        if not self._event.ready():
+            self._event.send(True)
 
     def alias(self, from_, to):
         self.targets[to] = self.targets[from_]
