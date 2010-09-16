@@ -1,9 +1,11 @@
 import eventlet
+from eventlet.event import Event
 from eventlet.green import select
 
 from drivel.messaging.pyframed import Messaging
 
 HEARTBEAT = 'heartbeat'
+SEND_TO_ALL = '*'
 
 
 class Connections(object):
@@ -11,6 +13,8 @@ class Connections(object):
         self.id = ownid
         self.sockets = []
         self.targets = {}
+        self._event = Event()
+        self.ALL = SEND_TO_ALL
 
     def filter(self, msg):
         if msg == HEARTBEAT:
@@ -26,8 +30,13 @@ class Connections(object):
         self.sockets.append(msgn)
         if target is not None:
             self.targets[target] = msgn
+        self._event.send(True)
+
+    def alias(self, from_, to):
+        self.targets[to] = self.targets[from_]
 
     def get(self):
+        self._event.wait()
         socks = self.sockets
         while True:
             ready, _, _ = select.select(socks, [], [])
@@ -39,12 +48,22 @@ class Connections(object):
                     return senderid, data
 
     def send(self, to, data):
-        target = self.targets[to]  # raises KeyError
-        self._send_to(target, data)
+        if to == self.ALL:
+            for i in self.sockets:
+                self._send_to(i, data)
+        elif isinstance(to, (tuple, list)):
+            for i in to:
+                self._send_to(i, data)
+        else:
+            target = self.targets[to]  # raises KeyError
+            self._send_to(target, data)
 
     def send_heartbeat(self):
-        for sock in self.sockets.values():
+        for sock in self.sockets:
             self._send_to(sock, HEARTBEAT)
 
     def _send_to(self, msgn, data):
         msgn.send((self.id, data))
+
+    def __len__(self):
+        return len(self.sockets)
