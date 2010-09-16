@@ -57,14 +57,16 @@ class Connections(object):
                 self._send_to(i, data)
         elif isinstance(to, (tuple, list)):
             for i in to:
-                self._send_to(i, data)
+                self.send(i, data)
         else:
             target = self.targets[to]  # raises KeyError
             self._send_to(target, data)
 
     def send_heartbeat(self):
-        for sock in self.sockets:
-            self._send_to(sock, HEARTBEAT)
+        self.send_to_all(HEARTBEAT)
+
+    def send_to_all(self, data):
+        self.send(self.ALL, data)
 
     def _send_to(self, msgn, data):
         msgn.send((self.id, data))

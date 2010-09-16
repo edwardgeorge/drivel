@@ -42,7 +42,18 @@ def test_send_to_all():
     for i in conns:
         c._add(i, id(i))
 
-    c.send_heartbeat()
+    c.send_to_all('foo')
     for i in conns:
         assert i.send.called
-        i.send.assert_called_with(('dummy', HEARTBEAT))
+        i.send.assert_called_with(('dummy', 'foo'))
+
+def test_send_to_many():
+    conns = [(i, mock.Mock()) for i in range(10)]
+    c = Connections('dummy')
+    for target, sock in conns:
+        c._add(sock, target)
+
+    targets = [2, 3, 5, 9]
+    c.send(targets, 'foo')
+    for i, sock in conns:
+        assert sock.send.called == (i in targets)
