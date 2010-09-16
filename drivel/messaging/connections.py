@@ -12,6 +12,7 @@ class Connections(object):
     def __init__(self, ownid):
         self.id = ownid
         self.sockets = []
+        self.listeners = []
         self.targets = {}
         self._event = Event()
         self.ALL = SEND_TO_ALL
@@ -20,6 +21,16 @@ class Connections(object):
         if msg == HEARTBEAT:
             return False
         return True
+
+    def listen(self, (addr, port)):
+        sock = eventlet.listen((addr,port))
+        self.listeners.append(sock)
+        def listener(sock):
+            while True:
+                s, addr = sock.accept()
+                self.add(s)
+        eventlet.spawn(listener, sock)
+        return sock.fd.getsockname()
 
     def connect(self, (addr, port), target=None):
         sock = eventlet.connect((addr, port))
