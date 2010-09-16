@@ -20,7 +20,7 @@ class Messaging(object):
         if self._len is None and len(self.buff) >= LEN_HEADER.size:
             header, self.buff = self.buff[:LEN_HEADER.size], self.buff[LEN_HEADER.size:]
             (self._len,) = LEN_HEADER.unpack(header)
-        if self._len is not None and self._len <= self.buff:
+        if self._len is not None and self._len <= len(self.buff):
             return True
         return False
 

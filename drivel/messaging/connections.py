@@ -14,6 +14,7 @@ class Connections(object):
         self.sockets = []
         self.listeners = []
         self.targets = {}
+        self.get_ready = []
         self._event = Event()
         self.ALL = SEND_TO_ALL
 
@@ -54,11 +55,16 @@ class Connections(object):
         self._event.wait()
         socks = self.sockets
         while True:
-            ready, _, _ = select.select(socks, [], [])
+            if self.get_ready:
+                ready = [self.get_ready.pop(0)]
+            else:
+                ready, _, _ = select.select(socks, [], [])
             if ready:
                 sock = ready[0]
                 senderid, data = sock.wait()
                 self.targets[senderid] = sock
+                if sock.peek():
+                    self.get_ready.append(sock)
                 if self.filter(data):
                     return senderid, data
 
