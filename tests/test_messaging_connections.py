@@ -69,3 +69,17 @@ def test_server_sockets():
     with eventlet.Timeout(1):
         sid, data = c1.get()
     assert data == 'foo', data
+
+def test_multiple_messages():
+    c1 = Connections('server')
+    c2 = Connections('client')
+
+    addr, port = c1.listen(('127.0.0.1', 0))
+    c2.connect((addr, port), 'server')
+    c2.send('server', 'foo')
+    c2.send('server', 'foo')
+    c2.send('server', 'foo')
+    with eventlet.Timeout(1):
+        sid, data = c1.get()
+        sid, data = c1.get()
+        sid, data = c1.get()
