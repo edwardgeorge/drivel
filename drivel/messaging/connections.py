@@ -57,6 +57,8 @@ class Connections(object):
         while True:
             if self.get_ready:
                 ready = [self.get_ready.pop(0)]
+                if not ready[0].peek():
+                    continue
             else:
                 ready, _, _ = select.select(socks, [], [])
             if ready:
