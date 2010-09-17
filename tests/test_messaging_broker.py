@@ -28,6 +28,8 @@ def test_remote_event():
     ret = b2.listen_one(enqueue=False)
     retevt = b2.events.returner_for(ret[0])
     retevt.send('pong')
-
     with eventlet.Timeout(1):
-        assert event.wait() == 'pong'
+        b1.listen_one()
+        b1.process_one()
+        msg = event.wait()
+        assert msg == 'pong', msg

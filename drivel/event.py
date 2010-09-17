@@ -18,11 +18,11 @@ class remoteevent(object):
     def send(self, result=None, exc=None):
         data = {'result': result, 'exc': exc}
         message = {
-            'envelopeto': self.id,
+            'envelopeto': (self.procid, self.id),
             'data': data,
         }
         self.pubsem.acquire()
-        self.publisher.send(RETURN_SUB, message)
+        self.publisher.send(self.procid, RETURN_SUB, message)
         self.pubsem.release()
 
 class EventManager(object):
