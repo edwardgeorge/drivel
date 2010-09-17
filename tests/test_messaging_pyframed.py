@@ -26,3 +26,50 @@ def test_closed_remote_wait():
     assert ma.wait() == 'message'
     b.close()
     ma.wait()
+
+
+# EOF is an explicit situation we need to handle in code
+# everything else will see the normal exceptions raised
+# and we don't want to interfere with those at this level.
+# just some simple tests below for sanity.
+
+@tools.raises(IOError)
+def test_closed_remote_send():
+    # trigger an EPIPE
+    a, b = socket.socketpair()
+    ma = Messaging(a)
+    mb = Messaging(b)
+
+    # send a message for luck.
+    ma.send('message')
+    assert mb.wait() == 'message'
+    b.close()
+    ma.send('another message')
+
+
+@tools.raises(IOError)
+def test_closed_socket_wait():
+    # trigger an EBADF
+    a, b = socket.socketpair()
+    ma = Messaging(a)
+    mb = Messaging(b)
+
+    # send a message for luck.
+    mb.send('message')
+    assert ma.wait() == 'message'
+    a.close()
+    ma.wait()
+
+
+@tools.raises(IOError)
+def test_closed_socket_wait():
+    # trigger an EBADF
+    a, b = socket.socketpair()
+    ma = Messaging(a)
+    mb = Messaging(b)
+
+    # send a message for luck.
+    ma.send('message')
+    assert mb.wait() == 'message'
+    a.close()
+    ma.send('another message')
