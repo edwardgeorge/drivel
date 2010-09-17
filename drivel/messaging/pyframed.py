@@ -5,6 +5,10 @@ import eventlet
 
 LEN_HEADER = struct.Struct('>I')
 
+class EOF(Exception):
+    pass
+
+
 class Messaging(object):
     def __init__(self, sock, serialiser=pickle):
         self.sock = sock
@@ -33,7 +37,10 @@ class Messaging(object):
                     self._len = None
                     return self._ser.loads(ret)
                 else:
-                    self.buff += self.sock.recv(self._bsz)
+                    ret = self.sock.recv(self._bsz)
+                    if not ret:
+                        raise EOF()
+                    self.buff = self.buff + ret
         except eventlet.Timeout, e:
             return None
         finally:
