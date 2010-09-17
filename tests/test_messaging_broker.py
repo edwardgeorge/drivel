@@ -33,3 +33,11 @@ def test_remote_event():
         b1.process_one()
         msg = event.wait()
         assert msg == 'pong', msg
+
+def test_subscription():
+    b = Broker('dummy')
+    q = eventlet.Queue()
+    b.subscribe('sub', q)
+    b.process_msg((None, None), 'sub', 'foo')
+    evt, ret = q.get_nowait()
+    assert ret == 'foo', ret
