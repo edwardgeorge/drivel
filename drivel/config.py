@@ -56,6 +56,8 @@ class Config(dict):
         from the full key.
 
         """
+        if ':' not in key:
+            return self.get(key)
         default, _, _ = key.partition(':')
         result = Config({})
         result.update(self.get(default, Config({})))
