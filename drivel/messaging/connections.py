@@ -76,7 +76,7 @@ class Connections(object):
         def listener(sock):
             while True:
                 s, addr = sock.accept()
-                logger.info('connection from %r' % addr)
+                logger.info('connection from %s:%d' % addr)
                 self.add(s)
         eventlet.spawn(listener, sock)
         return sock.fd.getsockname()
