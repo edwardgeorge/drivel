@@ -73,6 +73,8 @@ class Connections(object):
     def listen(self, (addr, port)):
         logger = Logger('drivel.messaging.connections.Connections.listen')
         sock = eventlet.listen((addr,port))
+        sockname = sock.fd.getsockname()
+        logger.info('listening on %s:%d' % sockname)
         self.listeners.append(sock)
         def listener(sock):
             while True:
@@ -80,7 +82,7 @@ class Connections(object):
                 logger.info('connection from %s:%d' % addr)
                 self.add(s)
         eventlet.spawn(listener, sock)
-        return sock.fd.getsockname()
+        return sockname
 
     def connect(self, (addr, port), target=None):
         sock = eventlet.connect((addr, port))
