@@ -103,12 +103,13 @@ def test_EPIPE_on_connection():
     b.close()
     c.send('remote', 'message')
 
-@tools.raises(eventlet.Timeout)
 def test_EBADF_on_connection():
     a, b = socket.socketpair()
     c = Connections('dummy')
     c.add(a, 'remote')
     a.close()
-    # bad fd should be silently removed on select error
-    with eventlet.Timeout(0.2):
-        c.get()
+    # the bad file-descriptor is silently removed so we
+    # will block here on this timeout
+    with eventlet.Timeout(0.1):
+        tools.assert_raises(eventlet.Timeout, c.get)
+    assert len(c.sockets) == 0

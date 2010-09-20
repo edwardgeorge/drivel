@@ -1,5 +1,6 @@
 import errno
 import os
+import weakref
 
 import eventlet
 from eventlet.event import Event
@@ -31,6 +32,7 @@ class Connections(object):
         self.sockets = []
         self.listeners = []
         self.targets = {}
+        self.dhandlers = []
         self.get_ready = []
         self._event = Event()
         self.ALL = SEND_TO_ALL
@@ -40,8 +42,22 @@ class Connections(object):
             return False
         return True
 
-    def disconnected(self, sock, errno=None):
-        pass
+    def add_disconnect_handler(self, handler):
+        self.dhandlers.append(handler)
+
+    def disconnected(self, sock, errno=None, data_to_send=None):
+        self.sockets.remove(sock)
+        aliases = self._names_for_connection(sock)
+        for a in aliases:
+            self.targets.pop(a, None)
+        for handler in self.dhandlers:
+            if isinstance(handler, weakref.ref):
+                _handler = handler
+                handler = handler()
+                if handler is None:
+                    self.dhandlers.remove(_handler)
+                    continue
+            eventlet.spawn(handler, sock, errno, aliases, data_to_send)
 
     def listen(self, (addr, port)):
         sock = eventlet.listen((addr,port))
@@ -75,14 +91,14 @@ class Connections(object):
     def alias(self, from_, to):
         self.targets[to] = self.targets[from_]
 
-    def _select_for_read(self):
+    def _select_for_read(self, timeout=None):
         try:
-            return select.select(self.sockets, [], [])
+            return select.select(self.sockets, [], [], timeout=timeout)
         except ValueError, e:
             for i in self.sockets:
                 if i.fileno() == -1:
                     self.sockets.remove(i)
-            return select.select(self.sockets, [], [])
+            return select.select(self.sockets, [], [], timeout=timeout)
 
     def get(self):
         self._event.wait()
