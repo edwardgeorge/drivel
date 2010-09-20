@@ -13,8 +13,8 @@ from eventlet import timeout
 from eventlet.green import time
 from webob import Request
 # local imports
-from auth import UnauthenticatedUser
 from drivel import component
+from drivel.auth import UnauthenticatedUser
 from drivel.utils.importing import import_preferential
 json = import_preferential('json', 'simplejson')
 
