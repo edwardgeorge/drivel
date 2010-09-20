@@ -1,4 +1,8 @@
 import pickle
+try:
+    import cPickle as pickle
+except ImportError, e:
+    import pickle
 import struct
 
 import eventlet
