@@ -32,3 +32,14 @@ def test_for_gt_leak():
     gc.collect()
     # check it's deleted
     assert g() is None
+
+@tools.raises(EventReady)
+def test_throw_is_immediate():
+    # we want to throw immediate so no exception thrown can interrupt us
+    # outside the context manager's with block.
+    from eventlet import greenthread
+    w = EventWatch()
+    w.event.send(None)
+    w._watcher(greenthread.getcurrent())
+    # if the throw is immediate, we should never get here
+    raise Exception('failed')
