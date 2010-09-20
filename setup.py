@@ -5,5 +5,5 @@ setup(
     version='0.1',
     packages=['drivel'],  # find_packages(exclude=['tests']),
     test_suite='nose.collector',
-    install_requires=['eventlet', 'webob', 'python-daemon'],
+    install_requires=['eventlet', 'WebOb', 'python-daemon'],
 )
