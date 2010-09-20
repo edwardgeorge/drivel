@@ -1,4 +1,5 @@
 import errno
+import logging
 import os
 import weakref
 
@@ -8,6 +9,8 @@ from eventlet.green import select
 
 from drivel.messaging.pyframed import Messaging, EOF
 from drivel.utils.contextmanagers import EventWatch, EventReady
+
+Logger = logging.getLogger
 
 HEARTBEAT = 'heartbeat'
 SEND_TO_ALL = '*'
@@ -67,12 +70,13 @@ class Connections(object):
             eventlet.spawn(handler, sock, errno, aliases, data_to_send)
 
     def listen(self, (addr, port)):
+        logger = Logger('drivel.messaging.connections.Connections.listen')
         sock = eventlet.listen((addr,port))
         self.listeners.append(sock)
         def listener(sock):
             while True:
                 s, addr = sock.accept()
-                print 'conn from', addr
+                logger.info('connection from %r' % addr)
                 self.add(s)
         eventlet.spawn(listener, sock)
         return sock.fd.getsockname()
