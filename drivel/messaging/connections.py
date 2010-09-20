@@ -127,6 +127,7 @@ class Connections(object):
                     self.disconnected(sock, None)
                     raise ConnectionClosed(sock, None)
                 except IOError, e:
+                    self.disconnected(sock, e.errno)
                     raise ConnectionError(sock, e.errno, None)
 
     def send(self, to, data):
