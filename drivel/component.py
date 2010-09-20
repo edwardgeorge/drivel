@@ -40,18 +40,27 @@ class Component(object):
 
     def _process(self):
         while True:
-            event, message = self._mqueue.get()
-            self.received_messages += 1
-            self._execute(self._handle_message, event, message)
+            try:
+                event, message = self._mqueue.get()
+                self.received_messages += 1
+                self._execute(self._handle_message, event, message)
+            except Exception, e:
+                pass
 
     def _handle_message(self, event, message):
         try:
             res = self.handle_message(message)
             self.handled_messages += 1
-            event.send(res)
+            self.send_to_event(event, res)
         except Exception, e:
             self.num_errors += 1
-            event.send(exc=e)
+            self.send_to_event(event, exc=e)
+
+    def send_to_event(self, event, *args, **kwargs):
+        try:
+            event.send(*args, **kwargs)
+        except ReferenceError, e:
+            pass
 
     def handle_message(self, message):
         raise NotImplementedError()
