@@ -18,6 +18,7 @@ import re
 import signal
 import sys
 import time
+import uuid
 
 import eventlet
 from eventlet import backdoor
@@ -99,11 +100,15 @@ class StaticFileServer(object):
 
 
 class Server(object):
-    def __init__(self, config, options, name=None):
+    def __init__(self, config, options):
         self.config = config
         self.options = options
+        self.name = self.options.name
+        if self.name is None:
+            self.name = uuid.uuid1()
+        self.server_config = self.get_config_section('server')
         self.components = {}
-        self.broker = Broker('broker')
+        self.broker = Broker(self.name)
         self._mqueue = queue.Queue()
         self.wsgiroutes = []
         #concurrency = 4
@@ -112,8 +117,27 @@ class Server(object):
         #self._pool = pool.Pool(max_size=concurrency)
         self._setupLogging()
 
+    def get_config_section(self, section):
+        name = self.name
+        if name is None:
+            return self.config.get(section)
+        else:
+            return self.config.section_with_overrides('%s:%s' %
+                (section, name))
+
     def start(self, start_listeners=True):
-        self.log('Server', 'info', 'starting server')
+        self.log('Server', 'info', 'starting server "%s"' % self.name)
+        listen = self.server_config.get('broker_listen', '')
+        for i in listen.split(','):
+            if i:
+                host, _, port = i.partition(':')
+                port = int(port)
+                self.broker.connections.listen((host, port))
+        conns = self.get_config_section('connections')
+        for k, v in conns:
+            host, _, port = v.partition(':')
+            port = int(port)
+            self.broker.connections.connect((host, port), target=k)
         self.broker.start()
         for name in self.config.components:
             self.components[name] = self.config.components.import_(name)(self,
@@ -310,12 +334,14 @@ def main():
     from optparse import OptionParser
     usage = "%prog [options] [start|stop|help]"
     parser = OptionParser(usage=usage)
+    parser.add_option('-n', '--name', dest='name',
+        help="server name/id.")
     parser.add_option('-c', '--config', dest='config',
         help="configuration file")
     parser.add_option('-s', '--statdump', dest='statdump',
         metavar='INTERVAL', type="int",
         help="dump stats at INTERVAL seconds")
-    parser.add_option('-n', '--no-http-logs', dest='nohttp',
+    parser.add_option('-N', '--no-http-logs', dest='nohttp',
         action="store_true",
         help="disable logging of http requests from wsgi server")
     parser.add_option(
