@@ -12,9 +12,9 @@ from eventlet import hubs
 from eventlet import timeout
 from eventlet.green import time
 try:
-    import simplejson
+    import json
 except ImportError:
-    import json as simplejson
+    import simplejson as json
 from webob import Request
 # local imports
 from auth import UnauthenticatedUser
@@ -190,9 +190,9 @@ def create_application(server):
         headers.extend(access_control(request))
         start_response('200 OK', headers)
         if 'jsonpcallback' in request.GET:
-            msgs = '%s(%s)' % (request.GET['jsonpcallback'], simplejson.dumps(msgs))
+            msgs = '%s(%s)' % (request.GET['jsonpcallback'], json.dumps(msgs))
         elif not isinstance(msgs, basestring):
-            msgs = simplejson.dumps(msgs)
+            msgs = json.dumps(msgs)
 
         return [msgs+'\r\n']
 
