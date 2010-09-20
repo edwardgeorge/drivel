@@ -164,6 +164,7 @@ class Connections(object):
         try:
             msgn.send((self.id, data))
         except IOError, e:
+            self.disconnected(sock, e.errno)
             raise ConnectionError(msgn, e.errno, None)
 
     def __len__(self):
