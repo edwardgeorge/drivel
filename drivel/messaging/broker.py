@@ -17,6 +17,10 @@ class Broker(object):
         self.subscriptions = {}
         self.BROADCAST = self.connections.ALL
 
+    def start(self):
+        eventlet.spawn(self.process)
+        eventlet.spawn(self.listen)
+
     def subscribe(self, key, queue):
         self.subscriptions[key] = queue
 
@@ -70,9 +74,15 @@ class Broker(object):
         }
 
     def send(self, to, subscription, message):
+        logger = Logger('drivel.messaging.broker.Broker.send')
         event, eventid = self.events.create()
         msg = (eventid, subscription, message)
-        if to != self.id:
+        if to is None:
+            if subscription in self.subscriptions:
+                self._mqueue.put(msg)
+            else:
+                self.connections.send(self.BROADCAST, msg)
+        elif to != self.id:
             self.connections.send(to, msg)
         else:
             self._mqueue.put(msg)
