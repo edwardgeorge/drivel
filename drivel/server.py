@@ -34,6 +34,7 @@ if __name__ == "__main__":
 
 import drivel.logstuff
 from drivel.config import fromfile as config_fromfile
+from drivel.messaging.broker import Broker
 from drivel.utils import debug
 from drivel.wsgi import create_application
 
@@ -98,12 +99,12 @@ class StaticFileServer(object):
 
 
 class Server(object):
-    def __init__(self, config, options):
+    def __init__(self, config, options, name=None):
         self.config = config
         self.options = options
         self.components = {}
+        self.broker = Broker('broker')
         self._mqueue = queue.Queue()
-        self.subscriptions = defaultdict(list)
         self.wsgiroutes = []
         #concurrency = 4
         #if self.config.has_option('server', 'mq_concurrency'):
@@ -113,10 +114,10 @@ class Server(object):
 
     def start(self, start_listeners=True):
         self.log('Server', 'info', 'starting server')
+        self.broker.start()
         for name in self.config.components:
             self.components[name] = self.config.components.import_(name)(self,
                 name)
-        self._greenlet = eventlet.spawn(self._process)
         if start_listeners and 'backdoor_port' in self.config.server:
             # enable backdoor console
             bdport = self.config.getint(('server', 'backdoor_port'))
@@ -152,32 +153,21 @@ class Server(object):
         if not self._greenlet.dead:
             self._greenlet.throw()
 
-    def _process(self):
-        """process message queue"""
-        while True:
-            event, subscription, message = self._mqueue.get()
-            if subscription in self.subscriptions and len(
-                self.subscriptions[subscription]):
-                self.log('Server', 'debug', 'processing message '
-                    'for %s: %s' % (subscription, message))
-                for subscriber in self.subscriptions[subscription]:
-                    subscriber.put((event, message))
-            elif event:
-                self.log('Server', 'warning', "couldn't find "
-                    "subscribers for %s: %s" % (subscription, message))
-                #event.send_exception()
 
-    def send(self, subscription, *message):
+    def send(self, subscription, *message, **kwargs):
         self.log('Server', 'debug', 'receiving message for %s'
             ': %s' % (subscription, message))
-        evt = event.Event()
-        self._mqueue.put((evt, subscription, message))
-        return evt
+        to = None
+        if kwargs.get('broadcast', False):
+            to = self.broker.BROADCAST
+        elif 'address_to' in kwargs:
+            to = kwargs['address_to']
+        return self.broker.send(to, subscription, message)
 
     def subscribe(self, subscription, queue):
         self.log('Server', 'info', 'adding subscription to %s'
             % subscription)
-        self.subscriptions[subscription].append(queue)
+        self.broker.subscribe(subscription, queue)
 
     def add_wsgimapping(self, mapping, subscription):
         if not isinstance(mapping, (tuple, list)):
