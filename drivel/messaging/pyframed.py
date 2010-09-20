@@ -1,11 +1,10 @@
 import pickle
-try:
-    import cPickle as pickle
-except ImportError, e:
-    import pickle
 import struct
 
 import eventlet
+
+from drivel.utils.importing import import_preferential
+pickle = import_preferential('cPickle', 'pickle')
 
 LEN_HEADER = struct.Struct('>I')
 

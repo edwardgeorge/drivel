@@ -11,14 +11,12 @@ from eventlet import greenthread
 from eventlet import hubs
 from eventlet import timeout
 from eventlet.green import time
-try:
-    import json
-except ImportError:
-    import simplejson as json
 from webob import Request
 # local imports
 from auth import UnauthenticatedUser
 from drivel import component
+from drivel.utils.importing import import_preferential
+json = import_preferential('json', 'simplejson')
 
 class TimeoutException(Exception):
     pass
