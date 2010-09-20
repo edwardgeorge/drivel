@@ -7,6 +7,7 @@ from eventlet.event import Event
 from eventlet.green import select
 
 from drivel.messaging.pyframed import Messaging, EOF
+from drivel.utils.contextmanagers import EventWatch, EventReady
 
 HEARTBEAT = 'heartbeat'
 SEND_TO_ALL = '*'
@@ -40,6 +41,7 @@ class Connections(object):
         self.dhandlers = []
         self.get_ready = []
         self._event = Event()
+        self.update_event = Event()
         self.ALL = SEND_TO_ALL
 
     def filter(self, msg):
@@ -89,6 +91,8 @@ class Connections(object):
             self.targets[target] = msgn
         if not self._event.ready():
             self._event.send(True)
+        if not self.update_event.ready():
+            self.update_event.send(True)
 
     def _names_for_connection(self, conn):
         return [k for k,v in self.targets.items() if v is conn]
@@ -108,27 +112,36 @@ class Connections(object):
     def get(self):
         self._event.wait()
         while True:
-            if self.get_ready:
-                ready = [self.get_ready.pop(0)]
-                if not ready[0].peek():
-                    continue
-            else:
-                ready, _, _ = self._select_for_read()
-            if ready:
-                try:
-                    sock = ready[0]
-                    senderid, data = sock.wait()
-                    self.targets[senderid] = sock
-                    if sock.peek():
-                        self.get_ready.append(sock)
-                    if self.filter(data):
-                        return senderid, data
-                except EOF, e:
-                    self.disconnected(sock, None)
-                    raise ConnectionClosed(sock, None)
-                except IOError, e:
-                    self.disconnected(sock, e.errno)
-                    raise ConnectionError(sock, e.errno, None)
+            try:
+                if self.get_ready:
+                    ready = [self.get_ready.pop(0)]
+                    if not ready[0].peek():
+                        #continue
+                        pass
+                else:
+                    if self.update_event.ready():
+                        self.update_event = Event()
+                    with EventWatch(self.update_event):
+                        ready, _, _ = self._select_for_read()
+                if ready:
+                    return self._do_get_from_sock(ready[0])
+            except EventReady, e:
+                pass
+
+    def _do_get_from_sock(self, sock):
+        try:
+            senderid, data = sock.wait()
+            self.targets[senderid] = sock
+            if sock.peek():
+                self.get_ready.append(sock)
+            if self.filter(data):
+                return senderid, data
+        except EOF, e:
+            self.disconnected(sock, None)
+            raise ConnectionClosed(sock, None)
+        except IOError, e:
+            self.disconnected(sock, e.errno)
+            raise ConnectionError(sock, e.errno, None)
 
     def send(self, to, data):
         if to == self.ALL:

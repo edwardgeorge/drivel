@@ -114,3 +114,17 @@ def test_EBADF_on_connection():
     with eventlet.Timeout(0.1):
         tools.assert_raises(eventlet.Timeout, c.get)
     assert len(c.sockets) == 0
+
+def test_updated_sockets_during_select():
+    a, b = socket.socketpair()
+    c = Connections('dummy')
+    c.add(a, 'remote')
+    def updater(c):
+        a, b = socket.socketpair()
+        c.add(a, 'new')
+        d = Connections('remote_side')
+        d.add(b, 'target')
+        d.send('target', 'message')
+    eventlet.spawn(updater, c)
+    with eventlet.Timeout(1):
+        c.get()
