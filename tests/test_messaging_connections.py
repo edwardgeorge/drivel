@@ -104,6 +104,16 @@ def test_EPIPE_on_connection():
     b.close()
     c.send('remote', 'message')
 
+def test_EPIPE_on_connection_during_multisend():
+    a, b = socket.socketpair()
+    c, d = socket.socketpair()
+    c = Connections('dummy')
+    c.add(a, 'remote')
+    c.add(c, 'remote2')
+    b.close()
+    # exception should be swallowed on send
+    c.send(c.ALL, 'message')
+
 def test_EBADF_on_connection():
     a, b = socket.socketpair()
     c = Connections('dummy')

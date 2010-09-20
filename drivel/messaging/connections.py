@@ -148,12 +148,18 @@ class Connections(object):
             raise ConnectionError(sock, e.errno, None)
 
     def send(self, to, data):
-        if to == self.ALL:
+        if to == self.ALL or to is None:
             for i in self.sockets:
-                self._send_to(i, data)
+                try:
+                    self._send_to(i, data)
+                except ConnectionError, e:
+                    pass
         elif isinstance(to, (tuple, list)):
             for i in to:
-                self.send(i, data)
+                try:
+                    self.send(i, data)
+                except ConnectionError, e:
+                    pass
         else:
             target = self.targets[to]  # raises KeyError
             self._send_to(target, data)
