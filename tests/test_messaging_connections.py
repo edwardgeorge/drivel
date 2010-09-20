@@ -1,7 +1,9 @@
 import eventlet
 from eventlet.green import socket
 import mock
+from nose import tools
 
+from drivel.messaging.connections import ConnectionError
 from drivel.messaging.connections import Connections
 from drivel.messaging.connections import HEARTBEAT
 
@@ -83,3 +85,30 @@ def test_multiple_messages():
         sid, data = c1.get()
         sid, data = c1.get()
         sid, data = c1.get()
+
+@tools.raises(ConnectionError)
+def test_EOF_on_connection():
+    sock = eventlet.listen(('127.0.0.1', 0))
+    addr, port = sock.fd.getsockname()
+    c = Connections('dummy')
+    c.connect((addr, port), 'remote')
+    sock.close()
+    c.get()
+
+@tools.raises(ConnectionError)
+def test_EPIPE_on_connection():
+    a, b = socket.socketpair()
+    c = Connections('dummy')
+    c.add(a, 'remote')
+    b.close()
+    c.send('remote', 'message')
+
+@tools.raises(eventlet.Timeout)
+def test_EBADF_on_connection():
+    a, b = socket.socketpair()
+    c = Connections('dummy')
+    c.add(a, 'remote')
+    a.close()
+    # bad fd should be silently removed on select error
+    with eventlet.Timeout(0.2):
+        c.get()
