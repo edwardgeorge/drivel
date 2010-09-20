@@ -3,6 +3,7 @@ from eventlet.green import socket
 import mock
 from nose import tools
 
+from drivel.messaging.connections import ConnectionClosed
 from drivel.messaging.connections import ConnectionError
 from drivel.messaging.connections import Connections
 from drivel.messaging.connections import HEARTBEAT
@@ -86,7 +87,7 @@ def test_multiple_messages():
         sid, data = c1.get()
         sid, data = c1.get()
 
-@tools.raises(ConnectionError)
+@tools.raises(ConnectionClosed)
 def test_EOF_on_connection():
     sock = eventlet.listen(('127.0.0.1', 0))
     addr, port = sock.fd.getsockname()

@@ -26,6 +26,11 @@ class ConnectionError(Exception):
         return 'EOF for fd %d' % self.sock.fileno()
 
 
+class ConnectionClosed(ConnectionError):
+    def __init__(self, sock, aliases):
+        super(ConnectionClosed, self).__init__(sock, None, aliases)
+
+
 class Connections(object):
     def __init__(self, ownid):
         self.id = ownid
@@ -86,7 +91,7 @@ class Connections(object):
             self._event.send(True)
 
     def _names_for_connection(self, conn):
-        return [k for k,v in self.sockets.items() if v is conn]
+        return [k for k,v in self.targets.items() if v is conn]
 
     def alias(self, from_, to):
         self.targets[to] = self.targets[from_]
@@ -119,7 +124,8 @@ class Connections(object):
                     if self.filter(data):
                         return senderid, data
                 except EOF, e:
-                    raise ConnectionError(sock, None, None)
+                    self.disconnected(sock, None)
+                    raise ConnectionClosed(sock, None)
                 except IOError, e:
                     raise ConnectionError(sock, e.errno, None)
 
