@@ -1,8 +1,11 @@
 # moving the broker aspect from the server for easy refactoring.
 import eventlet
+import logging
 
 from drivel.event import EventManager, RETURN_SUB
 from drivel.messaging.connections import Connections
+
+Logger = logging.getLogger
 
 
 class Broker(object):
@@ -21,11 +24,12 @@ class Broker(object):
         self.subscriptions.pop(key, None)
 
     def process(self):
+        logger = Logger('drivel.messaging.broker.Broker.process')
         while True:
             try:
                 self.process_one()
             except Exception, e:
-                print 'error', e
+                logger.error('error in process', e)
 
     def process_one(self):
         eventid, subscription, message = self._mqueue.get()
@@ -42,11 +46,12 @@ class Broker(object):
             pass
 
     def listen(self):
+        logger = Logger('drivel.messaging.broker.Broker.listen')
         while True:
             try:
                 self.listen_one()
             except Exception, e:
-                print 'error', e
+                logger.error('error in listen', e)
 
     def listen_one(self, enqueue=True):
         senderid, (eid, sub, msg) = self.connections.get()
