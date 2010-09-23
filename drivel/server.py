@@ -112,8 +112,11 @@ class Server(object):
             port = int(port)
             self.broker.connections.connect((host, port), target=k)
         self.broker.start()
-        for name in self.config.components:
-            self.components[name] = self.config.components.import_(name)(self,
+        components = self.get_config_section('components')
+        for name in components:
+            self.log('Server', 'info', 'adding "%s" component to %s' %
+                (name, self.procid))
+            self.components[name] = components.import_(name)(self,
                 name)
         if start_listeners and 'backdoor_port' in self.config.server:
             # enable backdoor console
