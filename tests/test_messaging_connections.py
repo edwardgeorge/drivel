@@ -96,13 +96,14 @@ def test_EOF_on_connection():
     sock.close()
     c.get()
 
-@tools.raises(ConnectionError)
 def test_EPIPE_on_connection():
     a, b = socket.socketpair()
     c = Connections('dummy')
     c.add(a, 'remote')
     b.close()
     c.send('remote', 'message')
+    # the bad file-descriptor is silently removed
+    assert len(c.sockets) == 0
 
 def test_EPIPE_on_connection_during_multisend():
     a, b = socket.socketpair()
