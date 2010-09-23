@@ -21,8 +21,8 @@ import eventlet
 from eventlet import backdoor
 from eventlet import event
 from eventlet import greenio
+from eventlet import greenthread
 from eventlet import hubs
-from eventlet import patcher
 from eventlet import queue
 from eventlet import wsgi
 
@@ -31,7 +31,6 @@ from drivel.messaging.broker import Broker
 from drivel.utils import debug
 from drivel.wsgi import create_application
 
-_socket = patcher.original('socket')
 PREFORK_SOCKETS = {}
 
 def listen(addr):
@@ -49,8 +48,7 @@ def statdumper(server, interval):
 def timed_switch_out(self):
     self._last_switch_out = time.time()
 
-from eventlet.greenthread import GreenThread
-GreenThread.switch_out = timed_switch_out
+greenthread.GreenThread.switch_out = timed_switch_out
 
 
 class safe_exit(object):
