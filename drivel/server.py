@@ -83,7 +83,6 @@ class Server(object):
         self.server_config = self.get_config_section('server')
         self.components = {}
         self.broker = Broker(self.procid)
-        self._mqueue = queue.Queue()
         self.wsgiroutes = []
         #concurrency = 4
         #if self.config.has_option('server', 'mq_concurrency'):
@@ -208,7 +207,6 @@ class Server(object):
             gc.collect() and gc.collect()
         stats.update({
             'server': {
-                'items': self._mqueue.qsize(),
                 'wsgi_free': self.server_pool.free(),
                 'wsgi_running': self.server_pool.running(),
             },
