@@ -11,7 +11,6 @@ from collections import defaultdict
 import gc
 import logging
 import os
-import mimetypes
 import pprint
 import re
 import sys
@@ -21,7 +20,9 @@ import uuid
 import eventlet
 from eventlet import backdoor
 from eventlet import event
+from eventlet import greenio
 from eventlet import hubs
+from eventlet import patcher
 from eventlet import queue
 from eventlet import wsgi
 
@@ -30,6 +31,14 @@ from drivel.messaging.broker import Broker
 from drivel.utils import debug
 from drivel.wsgi import create_application
 
+_socket = patcher.original('socket')
+PREFORK_SOCKETS = {}
+
+def listen(addr):
+    try:
+        return PREFORK_SOCKETS[addr]
+    except KeyError, e:
+        return eventlet.listen(addr)
 
 def statdumper(server, interval):
     while True:
@@ -90,8 +99,8 @@ class Server(object):
 
     def start(self, start_listeners=True):
         self.log('Server', 'info', 'starting server "%s"' % self.name)
-        listen = self.server_config.get('broker_listen', '')
-        for i in listen.split(','):
+        blisten = self.server_config.get('broker_listen', '')
+        for i in blisten.split(','):
             if i:
                 host, _, port = i.partition(':')
                 port = int(port)
@@ -111,7 +120,7 @@ class Server(object):
             self.log('Server', 'info', 'enabling backdoor on port %s'
                 % bdport)
             eventlet.spawn(backdoor.backdoor_server,
-                eventlet.listen(('127.0.0.1', bdport)),
+                listen(('127.0.0.1', bdport)),
                 locals={'server': self,
                         'debug': debug,
                         'exit': safe_exit(),
@@ -128,7 +137,7 @@ class Server(object):
             numsimulreq = self.config.get(('http', 'max_simultaneous_reqs'))
             host = self.config.http.address
             port = self.config.http.getint('port')
-            sock = eventlet.listen((host, port))
+            sock = listen((host, port))
             pool = self.server_pool = eventlet.GreenPool(10000)
             log = (self.options.nohttp or self.options.statdump) and \
                 dummylog() or None
@@ -220,12 +229,24 @@ def start(config, options):
         hubs.use_hub(config.server.import_('hub_module'))
 
     if 'fork_children' in config.server:
+        if 'prefork_listen' in config.server:
+            _toaddr = lambda (host, port): (host, int(port))
+            toaddr = lambda addrstr: _toaddr(addrstr.split(':', 1))
+            addrs = map(toaddr, config.server['prefork_listen'].split(','))
+            for addr in addrs:
+                PREFORK_SOCKETS[addr] = eventlet.listen(addr)
         children = config.server['fork_children'].split(',')
         for child in children:
             print 'forking', child
             pid = os.fork()
             if pid == 0:
                 # child
+                hub = hubs.get_hub()
+                if hasattr(hub, 'poll') and hasattr(hub.poll, 'fileno'):
+                    # probably epoll which uses a filedescriptor
+                    # and thus forking without exec is bad using that
+                    # poll instance.
+                    hubs.use_hub(hubs.get_default_hub())
                 start_single(config, options)
                 sys.exit(1)
         while True:
