@@ -1,3 +1,4 @@
+from __future__ import with_statement
 from glob import glob
 from optparse import OptionParser
 import os

@@ -6,7 +6,6 @@ The drivel server program.
 This program contains the drivel server class.
 """
 
-from __future__ import with_statement
 from collections import defaultdict
 import errno
 import gc
