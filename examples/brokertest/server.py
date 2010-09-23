@@ -1,7 +1,7 @@
 import time
 import eventlet
 from drivel.messaging.broker import Broker
-broker = Broker('server')
+broker = Broker('brokertest', 'server')
 broker.connections.listen(('', 8899))
 
 BLOCK = 10000

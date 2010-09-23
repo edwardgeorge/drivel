@@ -2,7 +2,7 @@ import eventlet
 from eventlet import debug
 from drivel.messaging.broker import Broker
 #eventlet.debug.hub_blocking_detection(True)
-broker = Broker('client')
+broker = Broker('brokertest', 'client')
 broker.connections.connect(('127.0.0.1', 8899))
 eventlet.spawn(broker.listen)
 eventlet.spawn(broker.process)
