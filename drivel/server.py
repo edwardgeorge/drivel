@@ -242,8 +242,8 @@ def start(config, options):
             for k, l in enumerate(children):
                 if i != k and (i, k) not in connections:
                     a, b = socket.socketpair()
-                    connections[(i, k)] = a
-                    connections[(k, i)] = b
+                    connections[(i, k)] = (l, a)
+                    connections[(k, i)] = (j, b)
         for i, child in enumerate(children):
             print 'forking', child
             pid = os.fork()
@@ -260,7 +260,7 @@ def start(config, options):
                     if l == i:
                         myconns.append(s)
                     else:
-                        s.close()
+                        s[1].close()
                 options.name = child
                 start_single(config, options, myconns)
                 sys.exit(1)
@@ -282,7 +282,10 @@ def start(config, options):
 def start_single(config, options, sockets=[]):
     server = Server(config, options)
     for sock in sockets:
-        server.broker.connections.add(sock)
+        target=None
+        if isinstance(sock, tuple):
+            target, sock = sock
+        server.broker.connections.add(sock, target=target)
 
     if options.statdump:
         interval = options.statdump
