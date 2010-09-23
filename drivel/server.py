@@ -245,18 +245,25 @@ class Server(object):
 def start(config, options):
     if 'hub_module' in config.server:
         hubs.use_hub(config.server.import_('hub_module'))
-    #from eventlet import patcher
-    #patcher.monkey_patch(all=False, socket=True, select=True, os=True)
-    server = Server(config, options)
 
-    #def drop_to_shell(s, f):
-        #from IPython.Shell import IPShell
-        #s = IPShell([], {'server': server,
-                         #'debug': debug,
-                         #'stats': lambda: pprint.pprint(server.stats()),
-                        #})
-        #s.mainloop()
-    #signal.signal(signal.SIGUSR2, drop_to_shell)
+    if 'fork_children' in config.server:
+        children = config.server['fork_children'].split(',')
+        for child in children:
+            print 'forking', child
+            pid = os.fork()
+            if pid == 0:
+                # child
+                start_single(config, options)
+                sys.exit(1)
+        while True:
+            pid, exitstatus = os.wait()
+            print 'childprocess %d died' % pid
+    else:
+        start_single(config, options)
+
+
+def start_single(config, options):
+    server = Server(config, options)
 
     if options.statdump:
         interval = options.statdump
