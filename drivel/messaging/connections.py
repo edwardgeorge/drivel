@@ -37,7 +37,8 @@ class ConnectionClosed(ConnectionError):
 
 
 class Connections(object):
-    def __init__(self, ownid):
+    def __init__(self, name, ownid):
+        self.name = name
         self.id = ownid
         self.sockets = []
         self.listeners = []
@@ -143,7 +144,8 @@ class Connections(object):
 
     def _do_get_from_sock(self, sock):
         try:
-            senderid, data = sock.wait()
+            name, senderid, data = sock.wait()
+            self.register_target(name, sock)
             self.register_target(senderid, sock)
             if sock.peek():
                 self.get_ready.append(sock)
@@ -184,7 +186,7 @@ class Connections(object):
 
     def _send_to(self, msgn, data):
         try:
-            msgn.send((self.id, data))
+            msgn.send((self.name, self.id, data))
         except IOError, e:
             self.disconnected(msgn, e.errno)
             raise ConnectionError(msgn, e.errno, None)

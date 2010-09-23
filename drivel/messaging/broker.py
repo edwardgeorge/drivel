@@ -13,7 +13,7 @@ class Broker(object):
         self.id = id
         self._mqueue = eventlet.Queue()
         self.events = EventManager(id, self)
-        self.connections = Connections(id)
+        self.connections = Connections(name, id)
         self.subscriptions = {}
         self.BROADCAST = self.connections.ALL
 
