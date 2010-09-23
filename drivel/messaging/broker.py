@@ -9,7 +9,7 @@ Logger = logging.getLogger
 
 
 class Broker(object):
-    def __init__(self, id):
+    def __init__(self, name, id):
         self.id = id
         self._mqueue = eventlet.Queue()
         self.events = EventManager(id, self)

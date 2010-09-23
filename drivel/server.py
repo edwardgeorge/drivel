@@ -82,7 +82,7 @@ class Server(object):
             self.procid = '%s-%s' % (self.name, uuid.uuid1())
         self.server_config = self.get_config_section('server')
         self.components = {}
-        self.broker = Broker(self.procid)
+        self.broker = Broker(self.name, self.procid)
         self.wsgiroutes = []
         #concurrency = 4
         #if self.config.has_option('server', 'mq_concurrency'):

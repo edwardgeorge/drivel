@@ -53,6 +53,9 @@ class Connections(object):
             return False
         return True
 
+    def register_target(self, name, sock):
+        self.targets.setdefault(name, set()).add(sock)
+
     def add_disconnect_handler(self, handler):
         self.dhandlers.append(handler)
 
@@ -60,7 +63,10 @@ class Connections(object):
         self.sockets.remove(sock)
         aliases = self._names_for_connection(sock)
         for a in aliases:
-            self.targets.pop(a, None)
+            try:
+                self.targets[a].remove(sock)
+            except KeyError, e:
+                pass
         for handler in self.dhandlers:
             if isinstance(handler, weakref.ref):
                 _handler = handler
@@ -95,17 +101,17 @@ class Connections(object):
     def _add(self, msgn, target=None):
         self.sockets.append(msgn)
         if target is not None:
-            self.targets[target] = msgn
+            self.register_target(target, msgn)
         if not self._event.ready():
             self._event.send(True)
         if not self.update_event.ready():
             self.update_event.send(True)
 
     def _names_for_connection(self, conn):
-        return [k for k,v in self.targets.items() if v is conn]
+        return [k for k,v in self.targets.items() if conn in v]
 
     def alias(self, from_, to):
-        self.targets[to] = self.targets[from_]
+        self.register_target(to, self.targets[from_])
 
     def _select_for_read(self, timeout=None):
         try:
@@ -138,7 +144,7 @@ class Connections(object):
     def _do_get_from_sock(self, sock):
         try:
             senderid, data = sock.wait()
-            self.targets[senderid] = sock
+            self.register_target(senderid, sock)
             if sock.peek():
                 self.get_ready.append(sock)
             if self.filter(data):
@@ -164,8 +170,11 @@ class Connections(object):
                 except ConnectionError, e:
                     pass
         else:
-            target = self.targets[to]  # raises KeyError
-            self._send_to(target, data)
+            for target in list(self.targets[to]):  # raises KeyError
+                try:
+                    self._send_to(target, data)
+                except ConnectionError, e:
+                    pass
 
     def send_heartbeat(self):
         self.send_to_all(HEARTBEAT)

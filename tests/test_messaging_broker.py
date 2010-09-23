@@ -5,9 +5,9 @@ from drivel.messaging.broker import Broker
 
 def test_broadcast_to_other():
     r, w = socket.socketpair()
-    b1 = Broker('dummy1')
+    b1 = Broker('d', 'dummy1')
     b1.connections.add(r)
-    b2 = Broker('dummy2')
+    b2 = Broker('d', 'dummy2')
     b2.connections.add(w)
 
     b1.send(b1.BROADCAST, 'sub', 'message')
@@ -19,9 +19,9 @@ def test_broadcast_to_other():
 
 def test_remote_event():
     r, w = socket.socketpair()
-    b1 = Broker('dummy1')
+    b1 = Broker('d', 'dummy1')
     b1.connections.add(r)
-    b2 = Broker('dummy2')
+    b2 = Broker('d', 'dummy2')
     b2.connections.add(w)
 
     event = b1.send(b1.BROADCAST, 'sub', 'ping')
@@ -35,7 +35,7 @@ def test_remote_event():
         assert msg == 'pong', msg
 
 def test_subscription():
-    b = Broker('dummy')
+    b = Broker('d', 'dummy')
     q = eventlet.Queue()
     b.subscribe('sub', q)
     b.process_msg((None, None), 'sub', 'foo')
