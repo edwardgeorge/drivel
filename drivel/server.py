@@ -70,6 +70,13 @@ class dummylog(object):
         pass
 
 
+def get_config_section_for_name(config, section, name):
+    if name is None:
+        return config.get(section)
+    else:
+        return config.section_with_overrides('%s:%s' %
+            (section, name))
+
 class Server(object):
     def __init__(self, config, options):
         self.config = config
@@ -91,11 +98,7 @@ class Server(object):
 
     def get_config_section(self, section):
         name = self.name
-        if name is None:
-            return self.config.get(section)
-        else:
-            return self.config.section_with_overrides('%s:%s' %
-                (section, name))
+        return get_config_section_for_name(self.config, section, name)
 
     def start(self, start_listeners=True):
         self.log('Server', 'info', 'starting server "%s" (%s)' %
@@ -228,17 +231,19 @@ class Server(object):
 
 
 def start(config, options):
-    if 'hub_module' in config.server:
-        hubs.use_hub(config.server.import_('hub_module'))
+    server_config = get_config_section_for_name(config, 'server',
+        options.name)
+    if 'hub_module' in server_config:
+        hubs.use_hub(server_config.import_('hub_module'))
 
-    if 'fork_children' in config.server:
-        if 'prefork_listen' in config.server:
+    if 'fork_children' in server_config:
+        if 'prefork_listen' in server_config:
             _toaddr = lambda (host, port): (host, int(port))
             toaddr = lambda addrstr: _toaddr(addrstr.split(':', 1))
-            addrs = map(toaddr, config.server['prefork_listen'].split(','))
+            addrs = map(toaddr, server_config['prefork_listen'].split(','))
             for addr in addrs:
                 PREFORK_SOCKETS[addr] = eventlet.listen(addr)
-        children = config.server['fork_children'].split(',')
+        children = server_config['fork_children'].split(',')
         connections = {}
         for i, j in enumerate(children):
             for k, l in enumerate(children):
