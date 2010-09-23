@@ -8,6 +8,7 @@ This program contains the drivel server class.
 
 from __future__ import with_statement
 from collections import defaultdict
+import errno
 import gc
 import logging
 import os
@@ -266,8 +267,16 @@ def start(config, options):
                 start_single(config, options, myconns)
                 sys.exit(1)
         while True:
-            pid, exitstatus = os.wait()
-            print 'childprocess %d died' % pid
+            try:
+                pid, exitstatus = os.wait()
+                print 'childprocess %d died' % pid
+            except OSError, e:
+                if e.errno == errno.ECHILD:
+                    sys.exit(0)
+                else:
+                    raise
+            except KeyboardInterrupt, e:
+                print 'quitting...'
     else:
         start_single(config, options)
 
