@@ -81,6 +81,7 @@ def get_config_section_for_name(config, section, name):
         return config.section_with_overrides('%s:%s' %
             (section, name))
 
+
 class Server(object):
     def __init__(self, config, options):
         self.config = config
@@ -160,7 +161,6 @@ class Server(object):
             del self.components[name]
         if not self._greenlet.dead:
             self._greenlet.throw()
-
 
     def send(self, subscription, *message, **kwargs):
         self.log('Server', 'debug', 'receiving message for %s'
@@ -293,7 +293,7 @@ def start(config, options):
 def start_single(config, options, sockets=[]):
     server = Server(config, options)
     for sock in sockets:
-        target=None
+        target = None
         if isinstance(sock, tuple):
             target, sock = sock
         server.broker.connections.add(sock, target=target)

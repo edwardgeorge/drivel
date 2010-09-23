@@ -11,6 +11,7 @@ import daemon  # provided by python-daemon
 from drivel.config import fromfile as config_fromfile
 from drivel.server import start
 
+
 def lifecycle_cleanup():
     """Terminate the process nicely."""
     sys.exit(0)

@@ -4,7 +4,7 @@ import eventlet
 from drivel.component import Component
 
 class Ping(Component):
-    subscription='ping'
+    subscription = 'ping'
 
     def __init__(self, server, name=None):
         super(Ping, self).__init__(server, name)
@@ -22,7 +22,7 @@ class Ping(Component):
                 print 'failed to get ping!'
 
 class Pong(Component):
-    subscription='pong'
+    subscription = 'pong'
 
     def __init__(self, server, name=None):
         super(Pong, self).__init__(server, name)

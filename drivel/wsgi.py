@@ -18,28 +18,35 @@ from drivel.auth import UnauthenticatedUser
 from drivel.utils.importing import import_preferential
 json = import_preferential('json', 'simplejson')
 
+
 class TimeoutException(Exception):
     pass
+
 
 class InvalidSession(Exception):
     pass
 
+
 class ConnectionReplaced(Exception):
     pass
+
 
 class ConnectionClosed(Exception):
     pass
 
+
 class PathNotResolved(Exception):
     pass
 
+
 def _path_to_subscriber(routes, path):
-    for s,k,r in routes:
+    for s, k, r in routes:
         match = r.search(path)
         if match:
             kw = match.groupdict()
             return s, k, kw
     raise PathNotResolved(path)
+
 
 def dothrow(gt, cgt):
     hubs.get_hub().schedule_call_local(0,
@@ -48,10 +55,11 @@ def dothrow(gt, cgt):
 
 
 def create_application(server):
-    from components.session import SessionConflict # circular import
+    from components.session import SessionConflict  # circular import
     authbackend = server.config.http.import_('auth_backend')(server)
     tsecs = server.config.http.getint('maxwait')
     log = partial(server.log, 'WSGI')
+
     # error handling
     def error_middleware(app):
         def application(environ, start_response):
@@ -64,7 +72,8 @@ def create_application(server):
                     ], exc_info=sys.exc_info())
                 return ['Could not be authenticated']
             except PathNotResolved, e:
-                log('debug', 'no registered component for path %s' % (environ['PATH_INFO'], ))
+                log('debug', 'no registered component for path %s' %
+                    (environ['PATH_INFO'], ))
                 start_response('404 Not Found', [
                         ('Content-type', 'text/html'),
                     ], exc_info=sys.exc_info())
@@ -83,7 +92,7 @@ def create_application(server):
         def application(environ, start_response):
             """run application in an coroutine that we can link and pass
             to application via wsgi environ so that it can use it.
-            
+
             """
             proc = eventlet.spawn(app, environ, start_response)
             #environ['drivel.wsgi_proc'] = weakref.ref(proc)
@@ -109,14 +118,16 @@ def create_application(server):
                     greenthread.kill(proc(), ConnectionClosed())
             except socket.error, e:
                 if e[0] == errno.EPIPE:
-                    log('debug', 'got broken pipe on sock %s. terminating.' % fileno)
+                    log('debug', 'got broken pipe on sock %s. terminating.' %
+                        fileno)
                     if proc() is not None:
                         greenthread.kill(proc(), ConnectionClosed())
                 else:
                     log('debug', 'got error %s for sock %' % (e, fileno))
             except IOError, e:
                 if e.errno == errno.EPIPE:
-                    log('debug', 'got broken pipe on sock %s. terminating.' % fileno)
+                    log('debug', 'got broken pipe on sock %s. terminating.' %
+                        fileno)
                     if proc() is not None:
                         greenthread.kill(proc(), ConnectionClosed())
                 else:
@@ -131,7 +142,8 @@ def create_application(server):
         if 'Origin' in request.headers:
             for key, origin in origins.items():
                 if origin == request.headers['Origin']:
-                    return [('Access-Control-Allow-Origin', request.headers['Origin'])]
+                    return [('Access-Control-Allow-Origin',
+                        request.headers['Origin'])]
         return []
 
     # the actual wsgi app
@@ -163,16 +175,18 @@ def create_application(server):
             return ['']
         user = authbackend(request)
         path = request.path.strip('/').split('/')
-        log('debug', 'path: %s from: %s' % (request.path, request.headers['user-agent']))
-        body = str(request.body) if request.method == 'POST' else request.GET.get('body', '')
+        log('debug', 'path: %s from: %s' % (request.path,
+            request.headers['user-agent']))
+        body = (str(request.body) if request.method == 'POST' else
+            request.GET.get('body', ''))
 
         try:
             timeoutstarttime = time.time()
             timeouttimer = timeout.Timeout(tsecs, TimeoutException())
             if rfile:
                 watchconnection(rfile, proc)
-            subs, msg, kw = _path_to_subscriber(server.wsgiroutes, request.path)
-            msgs = server.send(subs, msg, kw, user, request, proc).wait()
+            sub, msg, kw = _path_to_subscriber(server.wsgiroutes, request.path)
+            msgs = server.send(sub, msg, kw, user, request, proc).wait()
         except TimeoutException, e:
             log('debug', 'timeout reached for user %s after %ds' % (user,
                 (time.time() - timeoutstarttime)))
@@ -184,7 +198,8 @@ def create_application(server):
             timeouttimer.cancel()
         # do response
         log('debug', 'got messages %s for user %s' % (msgs, user))
-        headers = [('Content-type', 'application/javascript'), ('Connection', 'close')]
+        headers = [('Content-type', 'application/javascript'),
+            ('Connection', 'close')]
         headers.extend(access_control(request))
         start_response('200 OK', headers)
         if 'jsonpcallback' in request.GET:
@@ -192,9 +207,8 @@ def create_application(server):
         elif not isinstance(msgs, basestring):
             msgs = json.dumps(msgs)
 
-        return [msgs+'\r\n']
+        return [msgs + '\r\n']
 
     app = error_middleware(application)
     app = linkablecoroutine_middleware(app)
     return app
-

@@ -10,6 +10,7 @@ import xmpp
 from drivel.component import Component
 #from drivel.green import xmpp
 
+
 def plain_credentials(server):
     """basic credential func"""
     def get_credentials(user):
@@ -29,13 +30,16 @@ class XMPPSupervisor(Component):
     def handle_message(self, message):
         method, user, tosend = message
         if user not in self.active_users:
-            self.log('debug', 'user %s not found in existing connections' % user)
+            self.log('debug', 'user %s not found in existing connections' %
+                user)
             self.active_users[user] = XMPPConnection(
                 self.server, user)
+
             def remove(*args, **kwargs):
                 self.log('debug', 'removing connection for %s' % user)
                 del self.active_users[user]
                 self.server.send('session', 'disconnected', user)
+
             self.active_users[user].link(remove)
         _event = event.Event()
         self.active_users[user].send((_event, method, tosend))
@@ -54,11 +58,13 @@ class XMPPConnection(object):
         self.server = server
         self.user = user
         self.client = None
-        self._get_credentials = server.config.xmpp.import_('credential_func')(server)
+        self._get_credentials = server.config.xmpp.import_(
+            'credential_func')(server)
         self._connected = event.Event()
         self._mqueue = queue.Queue()
-        # Proc.spawn has the side-effect of not descheduling current coro which is what we
-        # want here. (see assignment of instance into dict above)
+        # Proc.spawn has the side-effect of not descheduling current coro
+        # which is what we want here. (see assignment of instance into
+        # dict above).
         self._g_connect = proc.Proc.spawn(self._connect)
         self._g_run = proc.Proc.spawn(self._run)
         self._g_connect.link(self._g_run)
@@ -151,7 +157,7 @@ class XMPPConnection(object):
         self.server.log('XMPPConnection[%s]' % self.user.username,
             'debug', 'received stanza: %s' % stanza)
         self.server.send('history', 'set', self.user, stanza)
-    
+
     def _presence_handler(self, session, stanza):
         self.server.send('roster', 'presence', str(stanza))
 
@@ -161,7 +167,7 @@ class XMPPConnection(object):
         domain = self.server.config.xmpp.domain
         host = self.server.config.xmpp.get('host')
         port = self.server.config.xmpp.get('port')
-        
+
         username, password = self._get_credentials(self.user)
         jid = xmpp.protocol.JID('%s@%s' % (username, domain))
         cl = xmpp.Client(jid.getDomain(), debug=[])
@@ -170,10 +176,10 @@ class XMPPConnection(object):
         assert cl.connect(
             condetails,
             secure=None if secure else 0
-        ), "could not connect to %s:%s" % condetails 
-        assert cl.auth(jid.getNode(), password, resource='httpgateway'), "could not authenticate"
+        ), "could not connect to %s:%s" % condetails
+        assert cl.auth(jid.getNode(), password, resource='httpgateway'), \
+            "could not authenticate"
         self.client = cl
         self.server.log('XMPPConnection[%s]' % self.user.username,
             'debug', '...connected')
         self._postconnection()
-

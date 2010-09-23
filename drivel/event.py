@@ -25,6 +25,7 @@ class remoteevent(object):
         self.publisher.send(self.procid, RETURN_SUB, message)
         self.pubsem.release()
 
+
 class EventManager(object):
     def __init__(self, procid, publisher):
         self.events = {}

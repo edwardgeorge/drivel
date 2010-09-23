@@ -79,10 +79,11 @@ class Connections(object):
 
     def listen(self, (addr, port)):
         logger = Logger('drivel.messaging.connections.Connections.listen')
-        sock = eventlet.listen((addr,port))
+        sock = eventlet.listen((addr, port))
         sockname = sock.fd.getsockname()
         logger.info('listening on %s:%d' % sockname)
         self.listeners.append(sock)
+
         def listener(sock):
             while True:
                 s, addr = sock.accept()
@@ -109,7 +110,7 @@ class Connections(object):
             self.update_event.send(True)
 
     def _names_for_connection(self, conn):
-        return [k for k,v in self.targets.items() if conn in v]
+        return [k for k, v in self.targets.items() if conn in v]
 
     def alias(self, from_, to):
         self.register_target(to, self.targets[from_])

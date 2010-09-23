@@ -6,8 +6,10 @@ from eventlet import event
 
 from drivel.component import Component
 
+
 class History(Component):
     subscription = 'history'
+
     def __init__(self, server, name):
         super(History, self).__init__(server, name)
         self.history = defaultdict(list)
@@ -42,7 +44,8 @@ class History(Component):
         elif method == 'set':
             history = self.history[user]
             history.append((time.time() * 1000, data))
-            threshold = 5 * 60 * 1000 # get this from config var, should be inactivity time
+            threshold = 5 * 60 * 1000  # get this from config var,
+            # ^ ...should be inactivity time
             while history[0] < threshold:
                 history.pop(0)
             if user in self.waiters and len(self.waiters[user]):
@@ -58,4 +61,3 @@ class History(Component):
             'waitingonnotification': sum(map(len, self.waiters.values())),
         })
         return stats
-
