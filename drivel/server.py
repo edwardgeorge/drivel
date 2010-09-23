@@ -20,6 +20,7 @@ import uuid
 import eventlet
 from eventlet import backdoor
 from eventlet import event
+from eventlet.green import socket
 from eventlet import greenio
 from eventlet import greenthread
 from eventlet import hubs
@@ -75,10 +76,12 @@ class Server(object):
         self.options = options
         self.name = self.options.name
         if self.name is None:
-            self.name = uuid.uuid1()
+            self.procid = self.name = uuid.uuid1()
+        else:
+            self.procid = '%s-%s' % (self.name, uuid.uuid1())
         self.server_config = self.get_config_section('server')
         self.components = {}
-        self.broker = Broker(self.name)
+        self.broker = Broker(self.procid)
         self._mqueue = queue.Queue()
         self.wsgiroutes = []
         #concurrency = 4
@@ -96,7 +99,8 @@ class Server(object):
                 (section, name))
 
     def start(self, start_listeners=True):
-        self.log('Server', 'info', 'starting server "%s"' % self.name)
+        self.log('Server', 'info', 'starting server "%s" (%s)' %
+            (self.name, self.procid))
         blisten = self.server_config.get('broker_listen', '')
         for i in blisten.split(','):
             if i:
@@ -234,7 +238,14 @@ def start(config, options):
             for addr in addrs:
                 PREFORK_SOCKETS[addr] = eventlet.listen(addr)
         children = config.server['fork_children'].split(',')
-        for child in children:
+        connections = {}
+        for i, j in enumerate(children):
+            for k, l in enumerate(children):
+                if i != k and (i, k) not in connections:
+                    a, b = socket.socketpair()
+                    connections[(i, k)] = a
+                    connections[(k, i)] = b
+        for i, child in enumerate(children):
             print 'forking', child
             pid = os.fork()
             if pid == 0:
@@ -245,7 +256,14 @@ def start(config, options):
                     # and thus forking without exec is bad using that
                     # poll instance.
                     hubs.use_hub(hubs.get_default_hub())
-                start_single(config, options)
+                myconns = []
+                for (l, r), s in connections.items():
+                    if l == i:
+                        myconns.append(s)
+                    else:
+                        s.close()
+                options.name = child
+                start_single(config, options, myconns)
                 sys.exit(1)
         while True:
             pid, exitstatus = os.wait()
@@ -254,8 +272,10 @@ def start(config, options):
         start_single(config, options)
 
 
-def start_single(config, options):
+def start_single(config, options, sockets=[]):
     server = Server(config, options)
+    for sock in sockets:
+        server.broker.connections.add(sock)
 
     if options.statdump:
         interval = options.statdump
