@@ -32,13 +32,17 @@ from drivel.messaging.broker import Broker
 from drivel.utils import debug
 from drivel.wsgi import create_application
 
+__all__ = ['Server', 'start']
+
 PREFORK_SOCKETS = {}
+
 
 def listen(addr):
     try:
         return PREFORK_SOCKETS[addr]
     except KeyError, e:
         return eventlet.listen(addr)
+
 
 def statdumper(server, interval):
     while True:
