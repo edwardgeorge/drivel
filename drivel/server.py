@@ -88,9 +88,9 @@ class Server(object):
         self.options = options
         self.name = self.options.name
         if self.name is None:
-            self.procid = self.name = uuid.uuid1()
+            self.procid = self.name = uuid.uuid4()
         else:
-            self.procid = '%s-%s' % (self.name, uuid.uuid1())
+            self.procid = '%s-%s' % (self.name, uuid.uuid4())
         self.server_config = self.get_config_section('server')
         self.components = {}
         self.broker = Broker(self.name, self.procid)
