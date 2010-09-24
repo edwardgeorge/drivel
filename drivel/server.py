@@ -229,7 +229,8 @@ class Server(object):
             'python': {
                 'greenthreads': len(gettypes('GreenThread')),
                 'gc_tracked_objs': len(gc.get_objects()),
-            }
+            },
+            'broker': self.broker.stats(),
         })
         return stats
 
