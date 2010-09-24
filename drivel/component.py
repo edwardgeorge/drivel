@@ -1,4 +1,6 @@
 from functools import partial
+import weakref
+
 import eventlet
 from eventlet import queue
 from eventlet import greenthread
@@ -91,6 +93,10 @@ class Component(object):
     def _dothrow(self, gt, cgt):
         #print 'throwing cancel from:%s to:%s current:%s' % (gt, cgt,
         #    greenthread.getcurrent())
+        if isinstance(cgt, weakref.ref):
+            cgt = cgt()
+            if cgt is None:
+                return
         if isinstance(cgt, greenthread.GreenThread):
             cgt.kill(CancelOperation, None, None)
         else:
