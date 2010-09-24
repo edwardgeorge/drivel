@@ -33,7 +33,7 @@ class Broker(object):
             try:
                 self.process_one()
             except Exception, e:
-                logger.error('error in process', e)
+                logger.error('error in process: %s' % e)
 
     def process_one(self):
         eventid, subscription, message = self._mqueue.get()
