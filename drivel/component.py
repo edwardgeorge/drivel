@@ -2,6 +2,7 @@ from functools import partial
 import eventlet
 from eventlet import queue
 from eventlet import greenthread
+from eventlet import hubs
 
 
 class CancelOperation(Exception):
