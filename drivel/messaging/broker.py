@@ -43,7 +43,8 @@ class Broker(object):
         event = self.events.returner_for(eventid)
         if subscription == RETURN_SUB:
             event = self.events.returner_for(message['envelopeto'])
-            event.send(**message['data'])
+            if not event.ready():
+                event.send(**message['data'])
         elif subscription in self.subscriptions:
             self.subscriptions[subscription].put((event, message))
         else:
