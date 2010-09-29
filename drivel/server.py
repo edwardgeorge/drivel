@@ -3,39 +3,46 @@
 """
 The drivel server program.
 
-This program contains the drivel server class.  It also contains a
-certain amount of cowpath paving for running a drivel server.
+This program contains the drivel server class.
 """
 
-from __future__ import with_statement
 from collections import defaultdict
+import errno
 import gc
 import logging
 import os
-import mimetypes
 import pprint
 import re
-import signal
 import sys
 import time
+import uuid
 
 import eventlet
 from eventlet import backdoor
 from eventlet import event
+from eventlet.green import socket
+from eventlet import greenio
+from eventlet import greenthread
 from eventlet import hubs
 from eventlet import queue
 from eventlet import wsgi
 
-# Command line cowpath paving
-if __name__ == "__main__":
-    from os.path import abspath
-    from os.path import dirname  # also used by findconfig below
-    sys.path = sys.path + [abspath(dirname(dirname(__file__)))]
-
 import drivel.logstuff
-from drivel.config import fromfile as config_fromfile
+from drivel.messaging.broker import Broker
 from drivel.utils import debug
 from drivel.wsgi import WSGIServer
+
+__all__ = ['Server', 'start']
+
+PREFORK_SOCKETS = {}
+
+
+def listen(addr):
+    try:
+        return PREFORK_SOCKETS[addr]
+    except KeyError, e:
+        return eventlet.listen(addr)
+
 
 def statdumper(server, interval):
     while True:
@@ -46,8 +53,7 @@ def statdumper(server, interval):
 def timed_switch_out(self):
     self._last_switch_out = time.time()
 
-from eventlet.greenthread import GreenThread
-GreenThread.switch_out = timed_switch_out
+greenthread.GreenThread.switch_out = timed_switch_out
 
 
 class safe_exit(object):
@@ -68,41 +74,26 @@ class dummylog(object):
         pass
 
 
-class StaticFileServer(object):
-    """For testing purposes only. Use a real static file server.
-    """
-    def __init__(self, directory_list, wrapped_app, host):
-        self.host = host
-        self.host.log("httpd", "info", "serving static files: %s" %
-            directory_list)
-        self.directory_list = [os.path.realpath(x) for x in directory_list]
-        self.wrapped_app = wrapped_app
-
-    def __call__(self, env, start_response):
-        for directory in self.directory_list:
-            path = os.path.realpath(directory + env['PATH_INFO'])
-            if not path.startswith(directory):
-                start_response("403 Forbidden",
-                    [('Content-Type', 'text/plain')])
-                return ['Forbidden']
-            if os.path.isdir(path):
-                path = os.path.join(path, 'index.html')
-            if os.path.exists(path):
-                content_type, encoding = mimetypes.guess_type(path)
-                if content_type is None:
-                    content_type = 'text/plain'
-                start_response("200 OK", [('Content-Type', content_type)])
-                return file(path).read()
-        return self.wrapped_app(env, start_response)
+def get_config_section_for_name(config, section, name):
+    if name is None:
+        return config.get(section)
+    else:
+        return config.section_with_overrides('%s:%s' %
+            (section, name))
 
 
 class Server(object):
     def __init__(self, config, options):
         self.config = config
         self.options = options
+        self.name = self.options.name
+        if self.name is None:
+            self.procid = self.name = uuid.uuid4()
+        else:
+            self.procid = '%s-%s' % (self.name, uuid.uuid4())
+        self.server_config = self.get_config_section('server')
         self.components = {}
-        self._mqueue = queue.Queue()
-        self.subscriptions = defaultdict(list)
+        self.broker = Broker(self.name, self.procid)
         self.wsgiservers = {}
         #concurrency = 4
         #if self.config.has_option('server', 'mq_concurrency'):
@@ -110,19 +101,38 @@ class Server(object):
         #self._pool = pool.Pool(max_size=concurrency)
         self._setupLogging()
 
+    def get_config_section(self, section):
+        name = self.name
+        return get_config_section_for_name(self.config, section, name)
+
     def start(self, start_listeners=True):
-        self.log('Server', 'info', 'starting server')
-        for name in self.config.components:
-            self.components[name] = self.config.components.import_(name)(self,
+        self.log('Server', 'info', 'starting server "%s" (%s)' %
+            (self.name, self.procid))
+        blisten = self.server_config.get('broker_listen', '')
+        for i in blisten.split(','):
+            if i:
+                host, _, port = i.partition(':')
+                port = int(port)
+                self.broker.connections.listen((host, port))
+        conns = self.get_config_section('connections')
+        for k, v in conns:
+            host, _, port = v.partition(':')
+            port = int(port)
+            self.broker.connections.connect((host, port), target=k)
+        self.broker.start()
+        components = self.get_config_section('components')
+        for name in components:
+            self.log('Server', 'info', 'adding "%s" component to %s' %
+                (name, self.procid))
+            self.components[name] = components.import_(name)(self,
                 name)
-        self._greenlet = eventlet.spawn(self._process)
         if start_listeners and 'backdoor_port' in self.config.server:
             # enable backdoor console
             bdport = self.config.getint(('server', 'backdoor_port'))
             self.log('Server', 'info', 'enabling backdoor on port %s'
                 % bdport)
             eventlet.spawn(backdoor.backdoor_server,
-                eventlet.listen(('127.0.0.1', bdport)),
+                listen(('127.0.0.1', bdport)),
                 locals={'server': self,
                         'debug': debug,
                         'exit': safe_exit(),
@@ -137,7 +147,7 @@ class Server(object):
             #app = StaticFileServer(dirs.split(','), app, self)
         if start_listeners:
             for srv in self.wsgiservers.values():
-                srv.start()
+                srv.start(listen=listen)
 
     def stop(self):
         for name, mod in self.components.items():
@@ -146,32 +156,20 @@ class Server(object):
         if not self._greenlet.dead:
             self._greenlet.throw()
 
-    def _process(self):
-        """process message queue"""
-        while True:
-            event, subscription, message = self._mqueue.get()
-            if subscription in self.subscriptions and len(
-                self.subscriptions[subscription]):
-                self.log('Server', 'debug', 'processing message '
-                    'for %s: %s' % (subscription, message))
-                for subscriber in self.subscriptions[subscription]:
-                    subscriber.put((event, message))
-            elif event:
-                self.log('Server', 'warning', "couldn't find "
-                    "subscribers for %s: %s" % (subscription, message))
-                #event.send_exception()
-
-    def send(self, subscription, *message):
+    def send(self, subscription, *message, **kwargs):
         self.log('Server', 'debug', 'receiving message for %s'
             ': %s' % (subscription, message))
-        evt = event.Event()
-        self._mqueue.put((evt, subscription, message))
-        return evt
+        to = None
+        if kwargs.get('broadcast', False):
+            to = self.broker.BROADCAST
+        elif 'address_to' in kwargs:
+            to = kwargs['address_to']
+        return self.broker.send(to, subscription, message)
 
     def subscribe(self, subscription, queue):
         self.log('Server', 'info', 'adding subscription to %s'
             % subscription)
-        self.subscriptions[subscription].append(queue)
+        self.broker.subscribe(subscription, queue)
 
     def add_wsgimapping(self, mapping, subscription):
         if not isinstance(mapping, (tuple, list)):
@@ -212,7 +210,6 @@ class Server(object):
             gc.collect() and gc.collect()
         stats.update({
             'server': {
-                'items': self._mqueue.qsize(),
                 'wsgi_free': self.server_pool.free(),
                 'wsgi_running': self.server_pool.running(),
             },
@@ -226,26 +223,75 @@ class Server(object):
             'python': {
                 'greenthreads': len(gettypes('GreenThread')),
                 'gc_tracked_objs': len(gc.get_objects()),
-            }
+            },
+            'broker': self.broker.stats(),
         })
         return stats
 
 
 def start(config, options):
-    if 'hub_module' in config.server:
-        hubs.use_hub(config.server.import_('hub_module'))
-    #from eventlet import patcher
-    #patcher.monkey_patch(all=False, socket=True, select=True, os=True)
-    server = Server(config, options)
+    server_config = get_config_section_for_name(config, 'server',
+        options.name)
+    if 'hub_module' in server_config:
+        hubs.use_hub(server_config.import_('hub_module'))
 
-    #def drop_to_shell(s, f):
-        #from IPython.Shell import IPShell
-        #s = IPShell([], {'server': server,
-                         #'debug': debug,
-                         #'stats': lambda: pprint.pprint(server.stats()),
-                        #})
-        #s.mainloop()
-    #signal.signal(signal.SIGUSR2, drop_to_shell)
+    if 'fork_children' in server_config:
+        if 'prefork_listen' in server_config:
+            _toaddr = lambda (host, port): (host, int(port))
+            toaddr = lambda addrstr: _toaddr(addrstr.split(':', 1))
+            addrs = map(toaddr, server_config['prefork_listen'].split(','))
+            for addr in addrs:
+                PREFORK_SOCKETS[addr] = eventlet.listen(addr)
+        children = server_config['fork_children'].split(',')
+        connections = {}
+        for i, j in enumerate(children):
+            for k, l in enumerate(children):
+                if i != k and (i, k) not in connections:
+                    a, b = socket.socketpair()
+                    connections[(i, k)] = (l, a)
+                    connections[(k, i)] = (j, b)
+        for i, child in enumerate(children):
+            print 'forking', child
+            pid = os.fork()
+            if pid == 0:
+                # child
+                hub = hubs.get_hub()
+                if hasattr(hub, 'poll') and hasattr(hub.poll, 'fileno'):
+                    # probably epoll which uses a filedescriptor
+                    # and thus forking without exec is bad using that
+                    # poll instance.
+                    hubs.use_hub(hubs.get_default_hub())
+                myconns = []
+                for (l, r), s in connections.items():
+                    if l == i:
+                        myconns.append(s)
+                    else:
+                        s[1].close()
+                options.name = child
+                start_single(config, options, myconns)
+                sys.exit(1)
+        while True:
+            try:
+                pid, exitstatus = os.wait()
+                print 'childprocess %d died' % pid
+            except OSError, e:
+                if e.errno == errno.ECHILD:
+                    sys.exit(0)
+                else:
+                    raise
+            except KeyboardInterrupt, e:
+                print 'quitting...'
+    else:
+        start_single(config, options)
+
+
+def start_single(config, options, sockets=[]):
+    server = Server(config, options)
+    for sock in sockets:
+        target = None
+        if isinstance(sock, tuple):
+            target, sock = sock
+        server.broker.connections.add(sock, target=target)
 
     if options.statdump:
         interval = options.statdump
@@ -253,109 +299,7 @@ def start(config, options):
     server.start()
 
 
-# Some lifecycle methods for standard unix server stuff
-import daemon
-import os
-
-
-def lifecycle_cleanup():
-    """Terminate the process nicely."""
-    sys.exit(0)
-
-
-def lifecycle_start(conf, options):
-    with daemon.DaemonContext() as dctx:
-        # Write the pid
-        with open(conf.server.get(
-                "pidfile",
-                "/tmp/drivel.pid"), "w") as pidfile:
-            pidfile.write("%s\n" % os.getpid())
-
-        # Set the signal map
-        dctx.signal_map = {
-            signal.SIGTERM: lifecycle_cleanup,
-            }
-        start(conf, options)
-
-
-def lifecycle_stop(conf, options):
-    with open(conf.server.get("pidfile", "/tmp/drivel.pid")) as pidfile:
-        pid = pidfile.read()
-        try:
-            os.kill(int(pid), signal.SIGTERM)
-        except Exception, e:
-            print >> sys.stderr, "couldn't stop %s" % pid
-
-
-def findconfig():
-    """Try and find a config file.
-    """
-    import socket
-    import os
-    from glob import glob
-    hn = socket.gethostname()
-
-    def pattern(d):
-        return "%s/*%s*.conf*" % (d, hn)
-    try:
-        # Try in current working directory
-        return glob(pattern(os.getcwd()))[0]
-    except IndexError:
-        try:
-            # Try in parent dir of this file
-            return glob(pattern(dirname(dirname(__file__))))[0]
-        except IndexError:
-            pass
-
-    return None
-
-
-def main():
-    from optparse import OptionParser
-    usage = "%prog [options] [start|stop|help]"
-    parser = OptionParser(usage=usage)
-    parser.add_option('-c', '--config', dest='config',
-        help="configuration file")
-    parser.add_option('-s', '--statdump', dest='statdump',
-        metavar='INTERVAL', type="int",
-        help="dump stats at INTERVAL seconds")
-    parser.add_option('-n', '--no-http-logs', dest='nohttp',
-        action="store_true",
-        help="disable logging of http requests from wsgi server")
-    parser.add_option(
-        '-D',
-        '--no-daemon',
-        dest='nodaemon',
-        action="store_true",
-        help="disable daemonification if specified in config")
-    options, args = parser.parse_args()
-
-    if "help" in args:
-        parser.print_help()
-        sys.exit(0)
-
-    if not options.config:
-        options.config = findconfig()
-        if options.config:
-            print "using %s" % options.config
-        else:
-            parser.error('please specify a config file')
-
-    sys.path += [os.path.dirname(options.config)]
-    conf = config_fromfile(options.config)
-
-    if "start" in args:
-        try:
-            if conf.server.daemon and not(options.nodaemon):
-                lifecycle_start(conf, options)
-            else:
-                raise AttributeError("no daemon")
-        except AttributeError:
-            start(conf, options)
-
-    elif "stop" in args:
-        lifecycle_stop(conf, options)
-
-
 if __name__ == '__main__':
+    # included here for existing tools compatibility
+    from drivel.startup import main
     main()

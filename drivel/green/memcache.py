@@ -3,4 +3,3 @@ patcher.inject('memcache',
     globals())
 
 del patcher
-
