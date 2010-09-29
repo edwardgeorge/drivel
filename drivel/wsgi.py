@@ -225,11 +225,15 @@ class WSGIServer(object):
         def __init__(self, logfunc=lambda data: None):
             self.write = logfunc
 
-    def start(self):
+    def start(self, listen=eventlet.listen):
         pool = eventlet.GreenPool(self.maxconns)
         pool.spawn_n = pool.spawn  # we want actual GreenThreads to link to
-        sock = eventlet.listen((self.address, self.port))
-        eventlet.spawn(wsgi.server, sock, self.app, custom_pool=pool,
+        sock = listen((self.address, self.port))
+        self._greenthread = eventlet.spawn(
+            wsgi.server,
+            sock,
+            self.app,
+            custom_pool=pool,
             log=self.http_log)
 
     def _path_to_subscriber(self, path):

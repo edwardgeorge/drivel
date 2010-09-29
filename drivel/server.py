@@ -112,8 +112,6 @@ class Server(object):
 
     def start(self, start_listeners=True):
         self.log('Server', 'info', 'starting server')
-        for name, conf in self.config.sections_in_ns('wsgi'):
-            self.wsgiservers[name] = WSGIServer(self, name, conf)
         for name in self.config.components:
             self.components[name] = self.config.components.import_(name)(self,
                 name)
@@ -131,20 +129,15 @@ class Server(object):
                         'quit': safe_exit(),
                         'stats': lambda: pprint.pprint(self.stats()),
                 })
-        app = create_application(self)
-        dirs = self.config.server.get('static_directories', None)
-        if dirs is not None:
-            app = StaticFileServer(dirs.split(','), app, self)
-        self.wsgiapp = app
+        for name, conf in self.config.sections_in_ns('wsgi'):
+            self.wsgiservers[name] = WSGIServer(self, name, conf)
+        # need to renable static file server in new version somehow...
+        #dirs = self.config.server.get('static_directories', None)
+        #if dirs is not None:
+            #app = StaticFileServer(dirs.split(','), app, self)
         if start_listeners:
-            numsimulreq = self.config.get(('http', 'max_simultaneous_reqs'))
-            host = self.config.http.address
-            port = self.config.http.getint('port')
-            sock = eventlet.listen((host, port))
-            pool = self.server_pool = eventlet.GreenPool(10000)
-            log = (self.options.nohttp or self.options.statdump) and \
-                dummylog() or None
-            wsgi.server(sock, app, custom_pool=pool, log=log)
+            for srv in self.wsgiservers.values():
+                srv.start()
 
     def stop(self):
         for name, mod in self.components.items():
