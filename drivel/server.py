@@ -35,8 +35,7 @@ if __name__ == "__main__":
 import drivel.logstuff
 from drivel.config import fromfile as config_fromfile
 from drivel.utils import debug
-from drivel.wsgi import create_application
-
+from drivel.wsgi import WSGIServer
 
 def statdumper(server, interval):
     while True:
@@ -104,7 +103,7 @@ class Server(object):
         self.components = {}
         self._mqueue = queue.Queue()
         self.subscriptions = defaultdict(list)
-        self.wsgiroutes = []
+        self.wsgiservers = {}
         #concurrency = 4
         #if self.config.has_option('server', 'mq_concurrency'):
             #concurrency = self.config.getint('server', 'mq_concurrency')
@@ -113,6 +112,8 @@ class Server(object):
 
     def start(self, start_listeners=True):
         self.log('Server', 'info', 'starting server')
+        for name, conf in self.config.sections_in_ns('wsgi'):
+            self.wsgiservers[name] = WSGIServer(self, name, conf)
         for name in self.config.components:
             self.components[name] = self.config.components.import_(name)(self,
                 name)

@@ -1,3 +1,4 @@
+from __future__ import with_statement
 import errno
 from functools import partial
 import os
@@ -9,7 +10,7 @@ import weakref
 import eventlet
 from eventlet import greenthread
 from eventlet import hubs
-from eventlet import timeout
+from eventlet import wsgi
 from eventlet.green import time
 try:
     import simplejson
@@ -19,6 +20,7 @@ from webob import Request
 # local imports
 from auth import UnauthenticatedUser
 from drivel import component
+from drivel.utils import connwatch
 
 class TimeoutException(Exception):
     pass
@@ -85,7 +87,7 @@ def create_application(server):
         def application(environ, start_response):
             """run application in an coroutine that we can link and pass
             to application via wsgi environ so that it can use it.
-            
+
             """
             proc = eventlet.spawn(app, environ, start_response)
             #environ['drivel.wsgi_proc'] = weakref.ref(proc)
@@ -200,3 +202,108 @@ def create_application(server):
     app = linkablecoroutine_middleware(app)
     return app
 
+
+class WSGIServer(object):
+    def __init__(self, server, name, config):
+        self.server = server
+        self.wsgi_config = config
+        self.wsgiroutes = []
+        self.app = self.application
+        #self.app = self.respawn_linkable_middleware(self.app)
+        self.app = self.error_middleware(self.app)
+        self.log = partial(server.log, 'WSGI:%s' % name)
+        self.http_log = self.Logger()
+        if config:
+            self.configure(config)
+
+    def configure(self, config):
+        self.address = config.get('address')
+        self.port = config.getint('port')
+        self.maxconns = config.getint('max_conns', 10000)
+
+    class Logger(object):
+        def __init__(self, logfunc=lambda data: None):
+            self.write = logfunc
+
+    def start(self):
+        pool = eventlet.GreenPool(self.maxconns)
+        pool.spawn_n = pool.spawn  # we want actual GreenThreads to link to
+        sock = eventlet.listen((self.address, self.port))
+        eventlet.spawn(wsgi.server, sock, self.app, custom_pool=pool,
+            log=self.http_log)
+
+    def _path_to_subscriber(self, path):
+        for s,k,r in self.wsgiroutes:
+            match = r.search(path)
+            if match:
+                kw = match.groupdict()
+                return s, k, kw
+        raise PathNotResolved(path)
+
+    def add_route(self, mapping, subscription):
+        if not isinstance(mapping, (tuple, list)):
+            mapping = (None, mapping)
+
+        mapping = (subscription, mapping[0], re.compile(mapping[1]))
+        self.wsgiroutes.append(mapping)
+
+    def respawn_linkable_middleware(self, app):
+        def middleware(environ, start_response):
+            proc = eventlet.spawn(app, environ, start_response)
+            return proc.wait()
+        return application
+
+    def error_middleware(self, app):
+        def middlware(environ, start_response):
+            try:
+                return app(environ, start_response)
+            except UnauthenticatedUser, e:
+                self.log('debug', 'request cannot be authenticated')
+                start_response('403 Forbidden', [
+                        ('Content-type', 'text/html'),
+                    ], exc_info=sys.exc_info())
+                return ['Could not be authenticated']
+            except PathNotResolved, e:
+                self.log('debug', 'no registered component for path %s' % (environ['PATH_INFO'], ))
+                start_response('404 Not Found', [
+                        ('Content-type', 'text/html'),
+                    ], exc_info=sys.exc_info())
+                return ['404 Not Found']
+            except Exception, e:
+                self.log('error', 'an unexpected exception was raised: %s' % e)
+                #log('error', 'traceback: %s' % traceback.format_exc())
+                start_response('500 Internal Server Error', [
+                        ('Content-type', 'text/html'),
+                    ], exc_info=sys.exc_info())
+                return ['Server encountered an unhandled exception']
+        return middleware
+
+    def application(self, environ, start_response):
+        rfile = getattr(environ['wsgi.input'], 'rfile', None)
+        request = Request(environ)
+        proc = weakref.ref(greenthread.getcurrent())
+        body = str(request.body) if request.method == 'POST' else request.GET.get('body', '')
+        watcher = None
+        if rfile:
+            watcher = connwatch.spawn(rfile, proc, ConnectionClosed, '')
+        subs, msg, kw = self._path_to_subscriber(server.wsgiroutes, request.path)
+        try:
+            with eventlet.Timeout(tsecs):
+                msgs = self.server.send(subs, msg, kw, user, request, proc).wait()
+        except eventlet.Timeout, e:
+            msgs = []
+        except ConnectionClosed, e:
+            msgs = []
+        finally:
+            if watcher:
+                greenthread.kill(watcher)
+        headers = [('Content-type', 'application/javascript'), ('Connection', 'close')]
+        start_response('200 OK', headers)
+        if 'jsonpcallback' in request.GET:
+            msgs = '%s(%s)' % (request.GET['jsonpcallback'], simplejson.dumps(msgs))
+        elif not isinstance(msgs, basestring):
+            msgs = simplejson.dumps(msgs)
+        return [msgs+'\r\n']
+
+    def __call__(self, environ, start_response):
+        return self.app(environ, start_response)
