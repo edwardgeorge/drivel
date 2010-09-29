@@ -20,4 +20,3 @@ def _patch():
         threading=threading)
 
 pg8000_dbapi = DBAPI = _patch()
-

@@ -6,12 +6,14 @@ TOKEN_DATE_FORMAT = "%Y%m%d%H%M%S"
 from drivel.auth import UnauthenticatedUser
 from drivel.contrib import username_from_path
 
+
 def SignedAuthBackend(server):
     from drivel.contrib.django import MemcacheAuthBackend
     from drivel.contrib.django import URLAuthBackend
     mcauth = MemcacheAuthBackend(server)
     urlauth = URLAuthBackend(server)
     secret_key = server.config.django.secret_key
+
     def doauth(request):
         username = username_from_path(request.path)
         if 'woome-sig' in request.headers:
@@ -45,4 +47,3 @@ def xmpp_credentials(server):
             sha1(auth_string).hexdigest())
         return user.username, auth_token
     return get_credentials
-

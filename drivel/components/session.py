@@ -7,6 +7,7 @@ import eventlet
 from drivel.component import Component
 from drivel.wsgi import ConnectionReplaced
 
+
 # move to exceptions module to prevent circular imports
 class SessionConflict(Exception):
     pass
@@ -14,6 +15,7 @@ class SessionConflict(Exception):
 
 class SessionManager(Component):
     subscription = 'session'
+
     def __init__(self, server, name):
         super(SessionManager, self).__init__(server, name)
         # list of all open connections for a session
@@ -53,8 +55,8 @@ class SessionManager(Component):
     def set_inactivity_timer(self, user):
         self.log('debug', 'setting inactivity timer for %s' % user)
         self.cancel_inactivity_timer(user)
-        self.user_timers[user] = eventlet.spawn_after(self._inactivity_disconnect,
-            self._inactivity_alarm, user)
+        self.user_timers[user] = eventlet.spawn_after(
+            self._inactivity_disconnect, self._inactivity_alarm, user)
 
     def remove_connection(self, sessid, conn):
         self.log('debug', 'removing session %s' % sessid)
@@ -114,5 +116,3 @@ class SessionManager(Component):
         elif message[0] == 'disconnected':
             user = message[1]
             self.disconnected_user(user)
-
-

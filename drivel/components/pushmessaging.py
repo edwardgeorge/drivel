@@ -8,12 +8,13 @@ from eventlet import queue
 from drivel.component import CancelOperation
 from drivel.component import WSGIComponent
 
-REMOVAL_HORIZON = 60 * 5 # 5mins
+REMOVAL_HORIZON = 60 * 5  # 5mins
 YIELD_AFTER = 10
+
 
 class PushQueue(WSGIComponent):
     subscription = 'push'
-    message_pool_size = 10000 
+    message_pool_size = 10000
     urlmapping = {
         'listen': r'^/[^/]+/alerts/',
         'pushmsg': r'/(?P<username>[^/]+)/push/$',
@@ -33,7 +34,8 @@ class PushQueue(WSGIComponent):
 
     def remove_users(self):
         unyielded_count = 0
-        while self.lruheap and self.lruheap[0][0] + REMOVAL_HORIZON < time.time():
+        RH = REMOVAL_HORIZON
+        while self.lruheap and self.lruheap[0][0] + RH < time.time():
             addtime, username = self.lruheap.popleft()
             self.log('debug', 'removing user %s' % username)
             self.lrudict[username] -= 1
@@ -76,7 +78,7 @@ class PushQueue(WSGIComponent):
         except queue.Empty, e:
             pass
         return msg
-        
+
     def do_pushmsg(self, user, request, proc, username):
         if not request.environ.get('woome.signed', False):
             return None
@@ -90,4 +92,3 @@ class PushQueue(WSGIComponent):
             'pushmessaging:waiting_users': len(self.users),
         })
         return stats
-

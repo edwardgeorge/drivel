@@ -3,6 +3,7 @@ from eventlet import pools
 from drivel.component import Component
 from drivel.green import memcache
 
+
 class _MemcachePool(pools.Pool):
     def __init__(self, pool_size, servers, *args, **kwargs):
         super(_MemcachePool, self).__init__(max_size=pool_size)
@@ -46,4 +47,3 @@ class ClientPool(Component):
             'memcacheclients:waiting': self._pool.waiting(),
         })
         return stats
-

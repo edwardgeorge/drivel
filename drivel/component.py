@@ -1,7 +1,10 @@
 from functools import partial
+import weakref
+
 import eventlet
 from eventlet import queue
 from eventlet import greenthread
+from eventlet import hubs
 
 
 class CancelOperation(Exception):
@@ -15,6 +18,7 @@ class Component(object):
 
     def __init__(self, server, name=None):
         self.server = server
+        self.registered_name = name
         self._mqueue = queue.Queue()
         assert self.subscription is not None
         self.server.subscribe(self.subscription, self._mqueue)
@@ -39,18 +43,27 @@ class Component(object):
 
     def _process(self):
         while True:
-            event, message = self._mqueue.get()
-            self.received_messages += 1
-            self._execute(self._handle_message, event, message)
+            try:
+                event, message = self._mqueue.get()
+                self.received_messages += 1
+                self._execute(self._handle_message, event, message)
+            except Exception, e:
+                pass
 
     def _handle_message(self, event, message):
         try:
             res = self.handle_message(message)
             self.handled_messages += 1
-            event.send(res)
+            self.send_to_event(event, res)
         except Exception, e:
             self.num_errors += 1
-            event.send(exc=e)
+            self.send_to_event(event, exc=e)
+
+    def send_to_event(self, event, *args, **kwargs):
+        try:
+            event.send(*args, **kwargs)
+        except ReferenceError, e:
+            pass
 
     def handle_message(self, message):
         raise NotImplementedError()
@@ -80,6 +93,10 @@ class Component(object):
     def _dothrow(self, gt, cgt):
         #print 'throwing cancel from:%s to:%s current:%s' % (gt, cgt,
         #    greenthread.getcurrent())
+        if isinstance(cgt, weakref.ref):
+            cgt = cgt()
+            if cgt is None:
+                return
         if isinstance(cgt, greenthread.GreenThread):
             cgt.kill(CancelOperation, None, None)
         else:

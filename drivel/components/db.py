@@ -7,13 +7,13 @@ from eventlet import pools
 from drivel.component import Component
 from drivel.green.pg8000 import DBAPI
 
-
 # patch some pg8000 silliness.
 # pg8000 issues a BEGIN instantly after commit or rollback
 DBAPI.ConnectionWrapper.commit = lambda self: self.conn.commit()
 DBAPI.ConnectionWrapper.rollback = lambda self: self.conn.rollback()
 # create a begin method
 DBAPI.ConnectionWrapper.begin = lambda self: self.conn.begin()
+
 
 class _PgPool(pools.Pool):
     def __init__(self, pool_size, *args, **kwargs):
@@ -92,5 +92,3 @@ class ConnectionPool(Component):
             'dbconnections:waiting': self._pool.waiting(),
         })
         return stats
-        
-
