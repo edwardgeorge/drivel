@@ -140,12 +140,12 @@ class Server(object):
                         'stats': lambda: pprint.pprint(self.stats()),
                 })
         app = create_application(self)
-        dirs = self.config.server.get('static_directories', None)
+        dirs = self.server_config.get('static_directories', None)
         if dirs is not None:
             from drivel.contrib.fileserver import StaticFileServer
             app = StaticFileServer(dirs.split(','), app, self)
         self.wsgiapp = app
-        if start_listeners:
+        if start_listeners and self.server_config.getboolean('start_www', True):
             numsimulreq = self.config.get(('http', 'max_simultaneous_reqs'))
             host = self.config.http.address
             port = self.config.http.getint('port')
@@ -153,7 +153,15 @@ class Server(object):
             pool = self.server_pool = eventlet.GreenPool(10000)
             log = (self.options.nohttp or self.options.statdump) and \
                 dummylog() or None
+            self.log('Server', 'info', 'starting www server on %s:%s,'
+                    ' component %s@%s' % (host, port, self.name, self.procid))
             wsgi.server(sock, app, custom_pool=pool, log=log)
+        elif start_listeners:
+            try:
+                hubs.get_hub().switch()
+            except KeyboardInterrupt, e:
+                pass
+            
 
     def stop(self):
         for name, mod in self.components.items():
