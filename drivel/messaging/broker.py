@@ -18,8 +18,8 @@ class Broker(object):
         self.BROADCAST = self.connections.ALL
 
     def start(self):
-        eventlet.spawn(self.process)
-        eventlet.spawn(self.listen)
+        p = self._process_greenthread = eventlet.spawn(self.process)
+        l = self._listen_greenthread = eventlet.spawn(self.listen)
 
     def subscribe(self, key, queue):
         self.subscriptions[key] = queue

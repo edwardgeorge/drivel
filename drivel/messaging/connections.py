@@ -187,7 +187,7 @@ class Connections(object):
 
     def _send_to(self, msgn, data):
         try:
-            msgn.send((self.name, self.id, data))
+            msgn.send_concurrent((self.name, self.id, data))
         except IOError, e:
             self.disconnected(msgn, e.errno)
             raise ConnectionError(msgn, e.errno, None)

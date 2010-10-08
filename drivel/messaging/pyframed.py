@@ -2,6 +2,7 @@ import pickle
 import struct
 
 import eventlet
+from eventlet.semaphore import Semaphore
 
 from drivel.utils.importing import import_preferential
 pickle = import_preferential('cPickle', 'pickle')
@@ -19,6 +20,7 @@ class Messaging(object):
         self._ser = serialiser
         self._len = None
         self._bsz = 4096
+        self._sem = Semaphore()
 
     def fileno(self):
         return self.sock.fileno()
@@ -56,3 +58,7 @@ class Messaging(object):
         data = self._ser.dumps(data)
         data = LEN_HEADER.pack(len(data)) + data
         self.sock.send(data)
+
+    def send_concurrent(self, data):
+        with self._sem:
+            self.send(data)

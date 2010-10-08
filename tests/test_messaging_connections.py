@@ -36,8 +36,8 @@ def test_heartbeat():
 
     c.send_heartbeat()
     for i in conns:
-        assert i.send.called
-        i.send.assert_called_with(('test', 'dummy', HEARTBEAT))
+        assert i.send_concurrent.called
+        i.send_concurrent.assert_called_with(('test', 'dummy', HEARTBEAT))
 
 def test_send_to_all():
     conns = [mock.Mock() for i in range(10)]
@@ -47,8 +47,8 @@ def test_send_to_all():
 
     c.send_to_all('foo')
     for i in conns:
-        assert i.send.called
-        i.send.assert_called_with(('test', 'dummy', 'foo'))
+        assert i.send_concurrent.called
+        i.send_concurrent.assert_called_with(('test', 'dummy', 'foo'))
 
 def test_send_to_many():
     conns = [(i, mock.Mock()) for i in range(10)]
@@ -59,7 +59,7 @@ def test_send_to_many():
     targets = [2, 3, 5, 9]
     c.send(targets, 'foo')
     for i, sock in conns:
-        assert sock.send.called == (i in targets)
+        assert sock.send_concurrent.called == (i in targets)
 
 def test_server_sockets():
     c1 = Connections('test', 'server')
