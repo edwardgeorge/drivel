@@ -128,7 +128,7 @@ class Server(object):
                 name)
         if start_listeners and 'backdoor_port' in self.config.server:
             # enable backdoor console
-            bdport = self.config.getint(('server', 'backdoor_port'))
+            bdport = self.server_config.getint('backdoor_port')
             self.log('Server', 'info', 'enabling backdoor on port %s'
                 % bdport)
             eventlet.spawn(backdoor.backdoor_server,
