@@ -145,12 +145,12 @@ class Server(object):
             from drivel.contrib.fileserver import StaticFileServer
             app = StaticFileServer(dirs.split(','), app, self)
         self.wsgiapp = app
+        pool = self.server_pool = eventlet.GreenPool(10000)
         if start_listeners and self.server_config.getboolean('start_www', True):
             numsimulreq = self.config.get(('http', 'max_simultaneous_reqs'))
             host = self.config.http.address
             port = self.config.http.getint('port')
             sock = listen((host, port))
-            pool = self.server_pool = eventlet.GreenPool(10000)
             log = (self.options.nohttp or self.options.statdump) and \
                 dummylog() or None
             self.log('Server', 'info', 'starting www server on %s:%s,'
