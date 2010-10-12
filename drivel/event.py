@@ -8,7 +8,7 @@ from eventlet.semaphore import Semaphore
 RETURN_SUB = '_return'
 
 
-class remoteevent(object):
+class RemoteEvent(object):
     def __init__(self, id, procid, publisher, semaphore):
         self.id = id
         self.procid = procid
@@ -51,7 +51,7 @@ class EventManager(object):
         return event, id
 
     def getreturner(self, origin, id):
-        return remoteevent(id, origin, self.publisher, self.pubsem)
+        return RemoteEvent(id, origin, self.publisher, self.pubsem)
 
     def returner_for(self, origin):
         if isinstance(origin, (list, tuple)):
