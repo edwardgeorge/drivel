@@ -26,6 +26,11 @@ class remoteevent(object):
         self.pubsem.release()
 
 
+class NullEvent(object):
+    def send(self, *args, **kwargs):
+        pass
+
+
 class EventManager(object):
     def __init__(self, procid, publisher):
         self.events = {}
@@ -53,7 +58,10 @@ class EventManager(object):
             if origin[0] != self.procid:
                 return self.getreturner(origin[0], origin[1])
             origin = origin[1]
-        return self.events[origin]
+        try:
+            return self.events[origin]
+        except KeyError, e:
+            return NullEvent()
 
     def return_(self, id, message):
         if id in self.events:
