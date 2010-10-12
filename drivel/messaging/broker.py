@@ -33,15 +33,19 @@ class Broker(object):
             try:
                 self.process_one()
             except Exception, e:
-                logger.error('error in process: %s' % e)
+                logger.exception('error in process: %s' % (e, ))
 
     def process_one(self):
+        logger = Logger('drivel.messaging.broker.Broker.process_one')
         eventid, subscription, message = self._mqueue.get()
+        logger.debug('msg process: %r, %r' % (eventid, subscription))
         self.process_msg(eventid, subscription, message)
 
     def process_msg(self, eventid, subscription, message):
+        logger = Logger('drivel.messaging.broker.Broker.process_msg')
         event = self.events.returner_for(eventid)
         if subscription == RETURN_SUB:
+            logger.debug('returning event to %r' % (eventid, ))
             event = self.events.returner_for(message['envelopeto'])
             if not event.ready():
                 event.send(**message['data'])
@@ -56,7 +60,7 @@ class Broker(object):
             try:
                 self.listen_one()
             except Exception, e:
-                logger.error('error in listen', e)
+                logger.error('error in listen: %s' % (e, ))
 
     def listen_one(self, enqueue=True):
         senderid, (eid, sub, msg) = self.connections.get()

@@ -1,3 +1,6 @@
+import logging
+import sys
+
 import eventlet
 from eventlet import debug
 from drivel.messaging.broker import Broker
@@ -9,10 +12,18 @@ eventlet.spawn(broker.process)
 
 p = eventlet.GreenPool()
 
+if '-d' in sys.argv:
+    logging.basicConfig(level=logging.DEBUG)
+
 def do(broker):
     event = broker.send(broker.BROADCAST, 'hello', 'hello')
     #eventlet.sleep(0)
     event.wait()
 
 while True:
-    p.spawn(do, broker)
+    g = p.spawn(do, broker)
+    if '-1' in sys.argv:
+        g.wait()
+        print 'done...'
+        eventlet.sleep(1)
+        break
