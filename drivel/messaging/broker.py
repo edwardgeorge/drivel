@@ -124,7 +124,7 @@ class Broker(object):
             'connections': len(self.connections),
             'messages': self._mqueue.qsize(),
             'subscriptions': len(self.subscriptions),
-            'single_process': single_process,
+            'single_process': self.single_process,
             'processes': {
                 'listen': bool(self._listen_gt),
                 'process': bool(self._process_gt),
