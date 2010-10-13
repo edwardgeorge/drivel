@@ -147,7 +147,7 @@ class Broker(object):
         if to is None:
             if subscription in self.subscriptions:
                 if self.single_process:
-                    self.process_now(*msg)
+                    self.process_now(msg)
                 else:
                     self._mqueue.put(msg)
             else:
