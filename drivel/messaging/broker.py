@@ -92,6 +92,13 @@ class Broker(object):
         else:
             pass
 
+    def process_now(self, message):
+        logger = Logger('drivel.messaging.broker.Broker.process_one')
+        try:
+            self.process_msg(*message)
+        except Exception, e:
+            logger.exception('error in process_now: %s' % (e, ))
+
     def listen(self):
         logger = Logger('drivel.messaging.broker.Broker.listen')
         #while self.continue_listening:
@@ -108,7 +115,7 @@ class Broker(object):
             try:
                 self.process_msg(*self.listen_one(False))
             except Exception, e:
-                logger.error('error in listen: %s' % (e, ))
+                logger.error('error in listen_and_process: %s' % (e, ))
 
     def listen_one(self, enqueue=True):
         senderid, (eid, sub, msg) = self.connections.get()
@@ -139,7 +146,10 @@ class Broker(object):
         msg = (eventid, subscription, message)
         if to is None:
             if subscription in self.subscriptions:
-                self._mqueue.put(msg)
+                if self.single_process:
+                    self.process_now(*msg)
+                else:
+                    self._mqueue.put(msg)
             else:
                 self.connections.send(self.BROADCAST, msg)
         elif to != self.id:
