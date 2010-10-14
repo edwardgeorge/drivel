@@ -7,6 +7,9 @@ from drivel.messaging.connections import Connections
 
 Logger = logging.getLogger
 
+SUB_DISCOVERY = 'subscription-discovery'
+SUB_BROADCAST = 'subscription-broadcast'
+
 
 class Broker(object):
     def __init__(self, name, id):
@@ -16,8 +19,11 @@ class Broker(object):
         self.events = EventManager(id, self)
         self.connections = Connections(name, id)
         self.subscriptions = {}
+        self.remote_subs = {}
+        self.remote_seen = set()
         self.BROADCAST = self.connections.ALL
         # process control
+        self.started = False
         self.single_process = True
         self.continue_listening = True
         self.continue_processing = True
@@ -47,6 +53,29 @@ class Broker(object):
             if not bool(self._listen_gt):
                 l = self._listen_gt = eventlet.spawn(self.listen)
                 l.link(self._ended, 'listen')
+        self.started = True
+        self.discover_subscriptions()
+
+    def discover_subscriptions(self, from_=None):
+        self.send(from_, SUB_DISCOVERY, self.id, link_event=False)
+
+    def handle_discovery_request(self, from_):
+        logger = Logger('drivel.messaging.broker.Broker'
+            '.handle_discovery_request')
+        logger.info('got discovery request from %s' % from_)
+        self.send(from_, SUB_BROADCAST, (self.id,
+            self.subscriptions.keys()), link_event=False)
+        if from_ is not None and from_ in self.remote_seen:
+            self.discover_subscriptions(from_)
+
+    def handle_discovery_response(self, message):
+        logger = Logger('drivel.messaging.broker.Broker'
+            '.handle_discovery_response')
+        remote_id, subscriptions = message
+        logger.info('got discovery response from %s' % remote_id)
+        for sub in subscriptions:
+            self.remote_subs.setdefault(sub, set()).add(remote_id)
+        self.remote_seen.add(remote_id)
 
     def switch(self, single_process):
         if not isinstance(single_process, bool):
@@ -60,6 +89,8 @@ class Broker(object):
 
     def subscribe(self, key, queue):
         self.subscriptions[key] = queue
+        if self.started:
+            self.handle_discovery_request(None)
 
     def unsubscribe(self, key):
         self.subscriptions.pop(key, None)
@@ -88,6 +119,10 @@ class Broker(object):
             event = self.events.returner_for(message['envelopeto'])
             if not event.ready():
                 event.send(**message['data'])
+        elif subscription == SUB_DISCOVERY:
+            self.handle_discovery_request(message)
+        elif subscription == SUB_BROADCAST:
+            self.handle_discovery_response(message)
         elif subscription in self.subscriptions:
             self.subscriptions[subscription].put((event, message))
         else:
@@ -156,6 +191,9 @@ class Broker(object):
                     self.process_now(msg)
                 else:
                     self._mqueue.put(msg)
+            elif subscription in self.remote_subs:
+                ids = list(self.remote_subs[subscription])
+                self.connections.send(ids, msg)
             else:
                 self.connections.send(self.BROADCAST, msg)
         elif to != self.id:
