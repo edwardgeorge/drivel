@@ -59,8 +59,12 @@ class EventManager(object):
     def returner_for(self, origin):
         if isinstance(origin, (list, tuple)):
             if origin[0] != self.procid:
+                if origin[1] == 'null':
+                    return NullEvent()
                 return self.getreturner(origin[0], origin[1])
             origin = origin[1]
+        if origin == 'null':
+            return NullEvent()
         try:
             return self.events[origin]
         except KeyError, e:

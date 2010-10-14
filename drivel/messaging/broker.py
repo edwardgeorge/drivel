@@ -140,9 +140,12 @@ class Broker(object):
             'messages_processed': self.msgs_processed,
         }
 
-    def send(self, to, subscription, message):
+    def send(self, to, subscription, message, link_event=True):
         logger = Logger('drivel.messaging.broker.Broker.send')
-        event, eventid = self.events.create()
+        if link_event:
+            event, eventid = self.events.create()
+        else:
+            event, eventid = None, 'null'
         msg = (eventid, subscription, message)
         if to is None:
             if subscription in self.subscriptions:

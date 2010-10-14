@@ -178,7 +178,9 @@ class Server(object):
             to = self.broker.BROADCAST
         elif 'address_to' in kwargs:
             to = kwargs['address_to']
-        return self.broker.send(to, subscription, message)
+        link_event = kwargs.get('link_event', True)
+        return self.broker.send(to, subscription, message,
+            link_event=link_event)
 
     def subscribe(self, subscription, queue):
         self.log('Server', 'info', 'adding subscription to %s'
