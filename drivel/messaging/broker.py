@@ -11,6 +11,7 @@ Logger = logging.getLogger
 class Broker(object):
     def __init__(self, name, id):
         self.id = id
+        self.name = name
         self._mqueue = eventlet.Queue()
         self.events = EventManager(id, self)
         self.connections = Connections(name, id)
@@ -90,6 +91,8 @@ class Broker(object):
         elif subscription in self.subscriptions:
             self.subscriptions[subscription].put((event, message))
         else:
+            #logger.debug('%s received message for unknown subscription: %s' %
+                #(self.name, subscription))
             pass
 
     def process_now(self, message):
