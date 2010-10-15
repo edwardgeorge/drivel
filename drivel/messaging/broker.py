@@ -1,6 +1,7 @@
 # moving the broker aspect from the server for easy refactoring.
-import eventlet
 import logging
+
+import eventlet
 
 from drivel.event import EventManager, RETURN_SUB
 from drivel.messaging.connections import Connections
