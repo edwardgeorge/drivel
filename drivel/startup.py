@@ -42,8 +42,7 @@ def lifecycle_stop(conf, options):
 
 
 def findconfig():
-    """Try and find a config file.
-    """
+    """Try and find a config file."""
     hn = socket.gethostname()
 
     def pattern(d):
