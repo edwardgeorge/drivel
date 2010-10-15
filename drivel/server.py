@@ -200,14 +200,14 @@ class Server(object):
 
     def _setupLogging(self):
         level = getattr(logging,
-            self.config.server.log_level.upper())
-        lh_name = self.config.server.get(
+            self.server_config.log_level.upper())
+        lh_name = self.server_config.get(
             "log_handler",
             "drivel.logstuff.StreamLoggingHandler")
         lh_class = eval(lh_name)
         lh = lh_class()
         lh.setFormatter(logging.Formatter(
-                self.config.server.get(
+                self.server_config.get(
                     "log_format",
                     "%(name)s:%(levelname)s:%(lineno)d:%(message)s")))
         root_logger = logging.getLogger("")
