@@ -10,6 +10,7 @@ pickle = import_preferential('cPickle', 'pickle')
 
 LEN_HEADER = struct.Struct('>I')
 
+
 class EOF(Exception):
     pass
 

@@ -1,5 +1,6 @@
 from eventlet.queue import Queue, Empty
 
+
 class Messaging(object):
     def __init__(self, queue=None):
         if queue is None:
