@@ -22,7 +22,10 @@ class Broker(object):
         self.subscriptions = {}
         self.remote_subs = {}
         self.remote_seen = set()
+        # constants
         self.BROADCAST = self.connections.ALL
+        self.SUB_DISCOVERY = SUB_DISCOVERY
+        self.SUB_BROADCAST = SUB_BROADCAST
         # process control
         self.started = False
         self.single_process = True
@@ -58,13 +61,13 @@ class Broker(object):
         self.discover_subscriptions()
 
     def discover_subscriptions(self, from_=None):
-        self.send(from_, SUB_DISCOVERY, self.id, link_event=False)
+        self.send(from_, self.SUB_DISCOVERY, self.id, link_event=False)
 
     def handle_discovery_request(self, from_):
         logger = Logger('drivel.messaging.broker.Broker'
             '.handle_discovery_request')
         logger.info('got discovery request from %s' % from_)
-        self.send(from_, SUB_BROADCAST, (self.id,
+        self.send(from_, self.SUB_BROADCAST, (self.id,
             self.subscriptions.keys()), link_event=False)
         if from_ is not None and from_ in self.remote_seen:
             self.discover_subscriptions(from_)
@@ -120,9 +123,9 @@ class Broker(object):
             event = self.events.returner_for(message['envelopeto'])
             if not event.ready():
                 event.send(**message['data'])
-        elif subscription == SUB_DISCOVERY:
+        elif subscription == self.SUB_DISCOVERY:
             self.handle_discovery_request(message)
-        elif subscription == SUB_BROADCAST:
+        elif subscription == self.SUB_BROADCAST:
             self.handle_discovery_response(message)
         elif subscription in self.subscriptions:
             self.subscriptions[subscription].put((event, message))
