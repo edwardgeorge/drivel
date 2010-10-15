@@ -146,7 +146,8 @@ class Server(object):
             app = StaticFileServer(dirs.split(','), app, self)
         self.wsgiapp = app
         pool = self.server_pool = eventlet.GreenPool(10000)
-        if start_listeners and self.server_config.getboolean('start_www', True):
+        if start_listeners and \
+                self.server_config.getboolean('start_www', True):
             numsimulreq = self.config.get(('http', 'max_simultaneous_reqs'))
             host = self.config.http.address
             port = self.config.http.getint('port')
@@ -161,7 +162,6 @@ class Server(object):
                 hubs.get_hub().switch()
             except KeyboardInterrupt, e:
                 pass
-            
 
     def stop(self):
         for name, mod in self.components.items():
