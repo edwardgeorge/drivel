@@ -45,3 +45,7 @@ def connectionwatcher(sock, proc_weakref, *exc_args):
 
 def spawn(sock, proc, *exc_args):
     return eventlet.spawn(connectionwatcher, sock, proc, *exc_args)
+
+
+def spawn_from_pool(pool, sock, proc, *exc_args):
+    return pool.spawn(connectionwatcher, sock, proc, *exc_args)

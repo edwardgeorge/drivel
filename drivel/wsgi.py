@@ -226,27 +226,40 @@ class WSGIServer(object):
         self.app = self.error_middleware(self.app)
         self.log = partial(server.log, 'WSGI:%s' % name)
         self.http_log = self.Logger()
+        self.server_pool = eventlet.GreenPool()
+        self.watcher_pool = eventlet.GreenPool()
         if config:
             self.configure(config)
+
+    def stats(self):
+        return {
+            'free': self.server_pool.free(),
+            'running': self.server_pool.running(),
+            'waiting': self.server_pool.waiting(),
+            'watchers': {
+                'free': self.watcher_pool.free(),
+                'running': self.watcher_pool.running(),
+                'waiting': self.watcher_pool.waiting(),
+            },
+        }
 
     def configure(self, config):
         self.address = config.get('address')
         self.port = config.getint('port')
         self.maxconns = config.getint('max_conns', 10000)
+        self.server_pool.resize(self.maxconns)
+        self.watcher_pool.resize(self.maxconns)
 
     class Logger(object):
         def __init__(self, logfunc=lambda data: None):
             self.write = logfunc
 
     def start(self, listen=eventlet.listen):
-        pool = eventlet.GreenPool(self.maxconns)
         pool.spawn_n = pool.spawn  # we want actual GreenThreads to link to
         sock = listen((self.address, self.port))
         self._greenthread = eventlet.spawn(
-            wsgi.server,
-            sock,
-            self.app,
-            custom_pool=pool,
+            wsgi.server, sock, self.app,
+            custom_pool=self.server_pool,
             log=self.http_log)
 
     def _path_to_subscriber(self, path):
@@ -302,7 +315,8 @@ class WSGIServer(object):
         body = str(request.body) if request.method == 'POST' else request.GET.get('body', '')
         watcher = None
         if rfile:
-            watcher = connwatch.spawn(rfile, proc, ConnectionClosed, '')
+            watcher = connwatch.spawn_from_pool(self.watcher_pool,
+                rfile, proc, ConnectionClosed, '')
         subs, msg, kw = self._path_to_subscriber(server.wsgiroutes, request.path)
         try:
             with eventlet.Timeout(tsecs):
