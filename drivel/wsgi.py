@@ -217,18 +217,25 @@ def create_application(server):
 
 
 class WSGIServer(object):
-    def __init__(self, server, name, config):
+    def __init__(self, server, name,
+            address='', port=0,
+            maxconns=1000,
+            config=None):
         self.server = server
-        self.wsgi_config = config
         self.wsgiroutes = []
         self.app = self.application
         #self.app = self.respawn_linkable_middleware(self.app)
         self.app = self.error_middleware(self.app)
         self.log = partial(server.log, 'WSGI:%s' % name)
         self.http_log = self.Logger()
-        self.server_pool = eventlet.ServerPool()
-        self.watcher_pool = eventlet.GreenPool()
-        if config:
+        self.server_pool = self.ServerPool(maxconns)
+        self.watcher_pool = eventlet.GreenPool(maxconns)
+        self._greenthread = None
+        # config
+        self.address = address
+        self.port = port
+        self.maxconns = maxconns
+        if config is not None:
             self.configure(config)
 
     def stats(self):
@@ -241,6 +248,7 @@ class WSGIServer(object):
                 'running': self.watcher_pool.running(),
                 'waiting': self.watcher_pool.waiting(),
             },
+            'server_thread_running': bool(self._greenthread)
         }
 
     def configure(self, config):
@@ -249,6 +257,7 @@ class WSGIServer(object):
         self.maxconns = config.getint('max_conns', 10000)
         self.server_pool.resize(self.maxconns)
         self.watcher_pool.resize(self.maxconns)
+        return self
 
     class Logger(object):
         def __init__(self, logfunc=lambda data: None):
@@ -259,12 +268,17 @@ class WSGIServer(object):
         def spawn_n(self, *args, **kwargs):
             return self.spawn(*args, **kwargs)
 
-    def start(self, listen=eventlet.listen):
-        sock = listen((self.address, self.port))
+    def start(self, sock=None, listen=eventlet.listen):
+        if sock is not None:
+            address, port = sock
+        else:
+            address, port = self.address, self.port
+        sock = self.sock = listen((address, port))
         self._greenthread = eventlet.spawn(
             wsgi.server, sock, self.app,
             custom_pool=self.server_pool,
             log=self.http_log)
+        return self
 
     def _path_to_subscriber(self, path):
         for s,k,r in self.wsgiroutes:
@@ -288,7 +302,7 @@ class WSGIServer(object):
         return application
 
     def error_middleware(self, app):
-        def middlware(environ, start_response):
+        def middleware(environ, start_response):
             try:
                 return app(environ, start_response)
             except UnauthenticatedUser, e:
