@@ -226,7 +226,7 @@ class WSGIServer(object):
         self.app = self.error_middleware(self.app)
         self.log = partial(server.log, 'WSGI:%s' % name)
         self.http_log = self.Logger()
-        self.server_pool = eventlet.GreenPool()
+        self.server_pool = eventlet.ServerPool()
         self.watcher_pool = eventlet.GreenPool()
         if config:
             self.configure(config)
@@ -254,8 +254,12 @@ class WSGIServer(object):
         def __init__(self, logfunc=lambda data: None):
             self.write = logfunc
 
+    class ServerPool(eventlet.GreenPool):
+        # we want actual GreenThreads to link to...
+        def spawn_n(self, *args, **kwargs):
+            return self.spawn(*args, **kwargs)
+
     def start(self, listen=eventlet.listen):
-        pool.spawn_n = pool.spawn  # we want actual GreenThreads to link to
         sock = listen((self.address, self.port))
         self._greenthread = eventlet.spawn(
             wsgi.server, sock, self.app,
