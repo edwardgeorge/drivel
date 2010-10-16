@@ -2,6 +2,7 @@ from __future__ import with_statement
 import errno
 from functools import partial
 import os
+import re
 import socket
 import sys
 import traceback
@@ -226,6 +227,7 @@ class WSGIServer(object):
         self.app = self.application
         #self.app = self.respawn_linkable_middleware(self.app)
         self.app = self.error_middleware(self.app)
+        self.authbackend = self.null_auth
         self.log = partial(server.log, 'WSGI:%s' % name)
         self.http_log = self.Logger()
         self.server_pool = self.ServerPool(maxconns)
@@ -236,6 +238,7 @@ class WSGIServer(object):
         self.address = address
         self.port = port
         self.maxconns = maxconns
+        self.timeout = 60
         if config is not None:
             self.configure(config)
 
@@ -256,8 +259,10 @@ class WSGIServer(object):
         self.address = config.get('address')
         self.port = config.getint('port')
         self.maxconns = config.getint('max_conns', 10000)
+        self.timeout = config.getint('maxwait')
         self.server_pool.resize(self.maxconns)
         self.watcher_pool.resize(self.maxconns)
+        self.authbackend = config.import_('auth_backend')(self)
         return self
 
     class Logger(object):
@@ -280,6 +285,9 @@ class WSGIServer(object):
             custom_pool=self.server_pool,
             log=self.http_log)
         return self
+
+    def null_auth(self, request):
+        return None
 
     def _path_to_subscriber(self, path):
         for s,k,r in self.wsgiroutes:
@@ -336,9 +344,10 @@ class WSGIServer(object):
         if rfile and self.watch_connections:
             watcher = connwatch.spawn_from_pool(self.watcher_pool,
                 rfile, proc, ConnectionClosed, '')
+        user = self.authbackend(request)
         subs, msg, kw = self._path_to_subscriber(request.path)
         try:
-            with eventlet.Timeout(tsecs):
+            with eventlet.Timeout(self.timeout):
                 msgs = self.server.send(subs, msg, kw, user, request, proc).wait()
         except eventlet.Timeout, e:
             msgs = []
@@ -350,9 +359,9 @@ class WSGIServer(object):
         headers = [('Content-type', 'application/javascript'), ('Connection', 'close')]
         start_response('200 OK', headers)
         if 'jsonpcallback' in request.GET:
-            msgs = '%s(%s)' % (request.GET['jsonpcallback'], simplejson.dumps(msgs))
+            msgs = '%s(%s)' % (request.GET['jsonpcallback'], json.dumps(msgs))
         elif not isinstance(msgs, basestring):
-            msgs = simplejson.dumps(msgs)
+            msgs = json.dumps(msgs)
         return [msgs+'\r\n']
 
     def __call__(self, environ, start_response):
