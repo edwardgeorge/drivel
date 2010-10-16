@@ -229,6 +229,7 @@ class WSGIServer(object):
         self.log = partial(server.log, 'WSGI:%s' % name)
         self.http_log = self.Logger()
         self.server_pool = self.ServerPool(maxconns)
+        self.watch_connections = True
         self.watcher_pool = eventlet.GreenPool(maxconns)
         self._greenthread = None
         # config
@@ -309,20 +310,20 @@ class WSGIServer(object):
                 self.log('debug', 'request cannot be authenticated')
                 start_response('403 Forbidden', [
                         ('Content-type', 'text/html'),
-                    ], exc_info=sys.exc_info())
+                    ], sys.exc_info())
                 return ['Could not be authenticated']
             except PathNotResolved, e:
                 self.log('debug', 'no registered component for path %s' % (environ['PATH_INFO'], ))
                 start_response('404 Not Found', [
                         ('Content-type', 'text/html'),
-                    ], exc_info=sys.exc_info())
+                    ], sys.exc_info())
                 return ['404 Not Found']
             except Exception, e:
                 self.log('error', 'an unexpected exception was raised: %s' % e)
                 #log('error', 'traceback: %s' % traceback.format_exc())
                 start_response('500 Internal Server Error', [
                         ('Content-type', 'text/html'),
-                    ], exc_info=sys.exc_info())
+                    ], sys.exc_info())
                 return ['Server encountered an unhandled exception']
         return middleware
 
@@ -332,10 +333,10 @@ class WSGIServer(object):
         proc = weakref.ref(greenthread.getcurrent())
         body = str(request.body) if request.method == 'POST' else request.GET.get('body', '')
         watcher = None
-        if rfile:
+        if rfile and self.watch_connections:
             watcher = connwatch.spawn_from_pool(self.watcher_pool,
                 rfile, proc, ConnectionClosed, '')
-        subs, msg, kw = self._path_to_subscriber(server.wsgiroutes, request.path)
+        subs, msg, kw = self._path_to_subscriber(request.path)
         try:
             with eventlet.Timeout(tsecs):
                 msgs = self.server.send(subs, msg, kw, user, request, proc).wait()
