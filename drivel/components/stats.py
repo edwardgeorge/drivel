@@ -54,6 +54,7 @@ class StatsCollectorComponent(WSGIComponent):
     def __init__(self, server, name):
         super(StatsCollectorComponent, self).__init__(server, name)
         self.known_responders = set()
+        self.initial_discovery_sent = False
 
     def handle_message(self, message):
         cmd, rest = message[0], message[1:]
@@ -91,10 +92,18 @@ class StatsCollectorComponent(WSGIComponent):
                 link_event=False)
 
     def do_stats(self, user, request, proc, path=None):
-        if len(self.known_responders) < 1:
+        if len(self.known_responders) < 1 or not self.initial_discovery_sent:
             self.discover()
+            self.initial_discovery_sent = True
             eventlet.sleep(1)
-        return self.collect()
+        stats = self.collect()
+        if path
+            try:
+                stats = dpath(stats, path)
+            except PathError, e:
+                # should 404
+                return {'error': 'path not found'}
+        return stats
 
     def do_announce(self, message):
         procid, = message
