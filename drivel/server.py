@@ -108,6 +108,7 @@ class Server(object):
     def start(self, start_listeners=True):
         self.log('Server', 'info', 'starting server "%s" (%s)' %
             (self.name, self.procid))
+        # setup ipc connections
         blisten = self.server_config.get('broker_listen', '')
         for i in blisten.split(','):
             if i:
@@ -120,12 +121,24 @@ class Server(object):
             port = int(port)
             self.broker.connections.connect((host, port), target=k)
         self.broker.start()
+
+        # wsgi server...
+        self.wsgi = WSGIServer(self, name, self.get_config_section('http'))
+        dirs = self.server_config.get('static_directories', None)
+        if dirs is not None:
+            from drivel.contrib.fileserver import StaticFileServer
+            self.wsgi.app = StaticFileServer(dirs.split(','),
+                self.wsgi.app, self)
+
+        # components...
         components = self.get_config_section('components')
         for name in components:
             self.log('Server', 'info', 'adding "%s" component to %s' %
                 (name, self.procid))
             self.components[name] = components.import_(name)(self,
                 name)
+
+        # start everything listening...
         if start_listeners and 'backdoor_port' in self.config.server:
             # enable backdoor console
             bdport = self.config.getint(('server', 'backdoor_port'))
@@ -140,12 +153,6 @@ class Server(object):
                         'stats': lambda: pprint.pprint(self.stats()),
                 })
 
-        self.wsgi = WSGIServer(self, name, self.get_config_section('http'))
-        dirs = self.server_config.get('static_directories', None)
-        if dirs is not None:
-            from drivel.contrib.fileserver import StaticFileServer
-            self.wsgi.app = StaticFileServer(dirs.split(','),
-                self.wsgi.app, self)
         if start_listeners and self.server_config.getboolean('start_www', True):
             self.wsgi.start(listen=listen)
         elif start_listeners:
