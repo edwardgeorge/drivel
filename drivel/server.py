@@ -139,15 +139,20 @@ class Server(object):
                         'quit': safe_exit(),
                         'stats': lambda: pprint.pprint(self.stats()),
                 })
-        for name, conf in self.config.sections_in_ns('wsgi'):
-            self.wsgiservers[name] = WSGIServer(self, name, conf)
-        # need to renable static file server in new version somehow...
-        #dirs = self.config.server.get('static_directories', None)
-        #if dirs is not None:
-            #app = StaticFileServer(dirs.split(','), app, self)
-        if start_listeners:
-            for srv in self.wsgiservers.values():
-                srv.start(listen=listen)
+
+        self.wsgi = WSGIServer(self, name, self.get_config_section('http'))
+        dirs = self.server_config.get('static_directories', None)
+        if dirs is not None:
+            from drivel.contrib.fileserver import StaticFileServer
+            self.wsgi.app = StaticFileServer(dirs.split(','),
+                self.wsgi.app, self)
+        if start_listeners and self.server_config.getboolean('start_www', True):
+            self.wsgi.start(listen=listen)
+        elif start_listeners:
+            try:
+                hubs.get_hub().switch()
+            except KeyboardInterrupt, e:
+                pass
 
     def stop(self):
         for name, mod in self.components.items():

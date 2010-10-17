@@ -1,3 +1,5 @@
+import logging
+import sys
 import time
 import eventlet
 from drivel.messaging.broker import Broker
@@ -24,6 +26,9 @@ def handler():
                 count = 0
                 start = time.time()
         event.send('bye')
+
+if '-d' in sys.argv:
+    logging.basicConfig(level=logging.DEBUG)
 
 broker.subscribe('hello', q)
 g = eventlet.spawn(handler)

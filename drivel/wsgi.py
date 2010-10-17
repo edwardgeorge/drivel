@@ -105,6 +105,7 @@ class WSGIServer(object):
         else:
             address, port = self.address, self.port
         sock = self.sock = listen((address, port))
+        self.log('info', 'starting www server on %s:%s,' % (address, port))
         self._greenthread = eventlet.spawn(
             wsgi.server, sock, self.app,
             custom_pool=self.server_pool,

@@ -8,7 +8,7 @@ from eventlet.semaphore import Semaphore
 RETURN_SUB = '_return'
 
 
-class remoteevent(object):
+class RemoteEvent(object):
     def __init__(self, id, procid, publisher, semaphore):
         self.id = id
         self.procid = procid
@@ -24,6 +24,11 @@ class remoteevent(object):
         self.pubsem.acquire()
         self.publisher.send(self.procid, RETURN_SUB, message)
         self.pubsem.release()
+
+
+class NullEvent(object):
+    def send(self, *args, **kwargs):
+        pass
 
 
 class EventManager(object):
@@ -46,14 +51,17 @@ class EventManager(object):
         return event, id
 
     def getreturner(self, origin, id):
-        return remoteevent(id, origin, self.publisher, self.pubsem)
+        return RemoteEvent(id, origin, self.publisher, self.pubsem)
 
     def returner_for(self, origin):
         if isinstance(origin, (list, tuple)):
             if origin[0] != self.procid:
                 return self.getreturner(origin[0], origin[1])
             origin = origin[1]
-        return self.events[origin]
+        try:
+            return self.events[origin]
+        except KeyError, e:
+            return NullEvent()
 
     def return_(self, id, message):
         if id in self.events:
