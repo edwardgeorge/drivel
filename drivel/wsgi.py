@@ -171,12 +171,12 @@ class WSGIServer(object):
         request = Request(environ)
         proc = weakref.ref(greenthread.getcurrent())
         body = str(request.body) if request.method == 'POST' else request.GET.get('body', '')
+        user = self.authbackend(request)
+        subs, msg, kw = self._path_to_subscriber(request.path)
         watcher = None
         if rfile and self.watch_connections:
             watcher = connwatch.spawn_from_pool(self.watcher_pool,
                 rfile, proc, ConnectionClosed, '')
-        user = self.authbackend(request)
-        subs, msg, kw = self._path_to_subscriber(request.path)
         try:
             with eventlet.Timeout(self.timeout):
                 msgs = self.server.send(subs, msg, kw, user, request, proc).wait()
