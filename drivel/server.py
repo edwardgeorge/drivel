@@ -221,9 +221,8 @@ class Server(object):
             gc.collect() and gc.collect()
         stats.update({
             'server': {
-                'wsgi_free': self.server_pool.free(),
-                'wsgi_running': self.server_pool.running(),
             },
+            'wsgi': self.wsgi.stats(),
             'eventlet': {
                 'next_timers': len(hub.next_timers),
                 'timers': len(hub.timers),
