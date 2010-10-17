@@ -17,16 +17,16 @@ import sys
 import time
 import uuid
 
+# third-party
 import eventlet
 from eventlet import backdoor
-from eventlet import event
-from eventlet.green import socket
-from eventlet import greenio
 from eventlet import greenthread
 from eventlet import hubs
-from eventlet import queue
-from eventlet import wsgi
 
+# greened modules
+from eventlet.green import socket
+
+# local
 import drivel.logstuff
 from drivel.messaging.broker import Broker
 from drivel.utils import debug
