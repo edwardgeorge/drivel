@@ -1,5 +1,6 @@
 import errno
 import select
+import socket
 
 import eventlet
 from eventlet import greenthread
