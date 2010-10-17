@@ -30,6 +30,9 @@ class NullEvent(object):
     def send(self, *args, **kwargs):
         pass
 
+    def ready(self):
+        return True
+
 
 class EventManager(object):
     def __init__(self, procid, publisher):
