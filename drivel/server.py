@@ -123,7 +123,8 @@ class Server(object):
         self.broker.start()
 
         # wsgi server...
-        self.wsgi = WSGIServer(self, name, self.get_config_section('http'))
+        self.wsgi = WSGIServer(self, self.name,
+            config=self.get_config_section('http'))
         dirs = self.server_config.get('static_directories', None)
         if dirs is not None:
             from drivel.contrib.fileserver import StaticFileServer
@@ -155,7 +156,7 @@ class Server(object):
 
         if start_listeners and self.server_config.getboolean('start_www', True):
             self.wsgi.start(listen=listen)
-        elif start_listeners:
+        if start_listeners:
             try:
                 hubs.get_hub().switch()
             except KeyboardInterrupt, e:

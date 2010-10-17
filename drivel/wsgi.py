@@ -112,6 +112,11 @@ class WSGIServer(object):
             log=self.http_log)
         return self
 
+    def wait(self):
+        if self._greenthread is None:
+            raise Exception('server not started!')
+        return self._greenthread.wait()
+
     def null_auth(self, request):
         return None
 
