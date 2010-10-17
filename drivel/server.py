@@ -30,7 +30,7 @@ from eventlet import wsgi
 import drivel.logstuff
 from drivel.messaging.broker import Broker
 from drivel.utils import debug
-from drivel.wsgi import create_application
+from drivel.wsgi import WSGIServer
 
 __all__ = ['Server', 'start']
 
@@ -94,7 +94,7 @@ class Server(object):
         self.server_config = self.get_config_section('server')
         self.components = {}
         self.broker = Broker(self.name, self.procid)
-        self.wsgiroutes = []
+        self.wsgiservers = {}
         #concurrency = 4
         #if self.config.has_option('server', 'mq_concurrency'):
             #concurrency = self.config.getint('server', 'mq_concurrency')
@@ -108,6 +108,7 @@ class Server(object):
     def start(self, start_listeners=True):
         self.log('Server', 'info', 'starting server "%s" (%s)' %
             (self.name, self.procid))
+        # setup ipc connections
         blisten = self.server_config.get('broker_listen', '')
         for i in blisten.split(','):
             if i:
@@ -120,12 +121,25 @@ class Server(object):
             port = int(port)
             self.broker.connections.connect((host, port), target=k)
         self.broker.start()
+
+        # wsgi server...
+        self.wsgi = WSGIServer(self, self.name,
+            config=self.get_config_section('http'))
+        dirs = self.server_config.get('static_directories', None)
+        if dirs is not None:
+            from drivel.contrib.fileserver import StaticFileServer
+            self.wsgi.app = StaticFileServer(dirs.split(','),
+                self.wsgi.app, self)
+
+        # components...
         components = self.get_config_section('components')
         for name in components:
             self.log('Server', 'info', 'adding "%s" component to %s' %
                 (name, self.procid))
             self.components[name] = components.import_(name)(self,
                 name)
+
+        # start everything listening...
         if start_listeners and 'backdoor_port' in self.config.server:
             # enable backdoor console
             bdport = self.server_config.getint('backdoor_port')
@@ -139,25 +153,10 @@ class Server(object):
                         'quit': safe_exit(),
                         'stats': lambda: pprint.pprint(self.stats()),
                 })
-        app = create_application(self)
-        dirs = self.server_config.get('static_directories', None)
-        if dirs is not None:
-            from drivel.contrib.fileserver import StaticFileServer
-            app = StaticFileServer(dirs.split(','), app, self)
-        self.wsgiapp = app
-        pool = self.server_pool = eventlet.GreenPool(10000)
-        if start_listeners and \
-                self.server_config.getboolean('start_www', True):
-            numsimulreq = self.config.get(('http', 'max_simultaneous_reqs'))
-            host = self.config.http.address
-            port = self.config.http.getint('port')
-            sock = listen((host, port))
-            log = (self.options.nohttp or self.options.statdump) and \
-                dummylog() or None
-            self.log('Server', 'info', 'starting www server on %s:%s,'
-                    ' component %s@%s' % (host, port, self.name, self.procid))
-            wsgi.server(sock, app, custom_pool=pool, log=log)
-        elif start_listeners:
+
+        if start_listeners and self.server_config.getboolean('start_www', True):
+            self.wsgi.start(listen=listen)
+        if start_listeners:
             try:
                 hubs.get_hub().switch()
             except KeyboardInterrupt, e:
@@ -188,11 +187,7 @@ class Server(object):
         self.broker.subscribe(subscription, queue)
 
     def add_wsgimapping(self, mapping, subscription):
-        if not isinstance(mapping, (tuple, list)):
-            mapping = (None, mapping)
-
-        mapping = (subscription, mapping[0], re.compile(mapping[1]))
-        self.wsgiroutes.append(mapping)
+        self.wsgi.add_route(mapping, subscription)
 
     def log(self, logger, level, message):
         logger = logging.getLogger(logger)
