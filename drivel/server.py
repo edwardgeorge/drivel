@@ -177,11 +177,7 @@ class Server(object):
         self.broker.subscribe(subscription, queue)
 
     def add_wsgimapping(self, mapping, subscription):
-        if not isinstance(mapping, (tuple, list)):
-            mapping = (None, mapping)
-
-        mapping = (subscription, mapping[0], re.compile(mapping[1]))
-        self.wsgiroutes.append(mapping)
+        self.wsgi.add_route(mapping, subscription)
 
     def log(self, logger, level, message):
         logger = logging.getLogger(logger)
