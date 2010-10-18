@@ -1,3 +1,5 @@
+import urllib
+
 import eventlet
 
 from drivel.component import Component
@@ -23,6 +25,18 @@ def dpath(dict_, path):
     except (KeyError, ValueError, IndexError), e:
         raise PathError()
     return result
+
+def dpath_multi(dict_, path):
+    data = {}
+    for k,v in dict_.iteritems():
+        try:
+            data[k] = dpath(v, path)
+        except PathError, e:
+            pass
+    if data:
+        return data
+    else:
+        raise PathError()
 
 
 class StatsComponent(WSGIComponent):
@@ -97,9 +111,16 @@ class StatsCollectorComponent(WSGIComponent):
             self.initial_discovery_sent = True
             eventlet.sleep(1)
         stats = self.collect()
-        if path
+        if path:
+            path = urllib.unquote(path)
             try:
-                stats = dpath(stats, path)
+                if path.startswith('/*/'):
+                    path = path[2:]
+                    stats = dpath_multi(stats, path)
+                elif path == '/*':
+                    pass
+                else:
+                    stats = dpath(stats, path)
             except PathError, e:
                 # should 404
                 return {'error': 'path not found'}

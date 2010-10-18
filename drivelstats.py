@@ -39,6 +39,30 @@ def drivelstats(url):
         for k, v in dataunfold(url.path.strip('/'), data):
             print '%s: %s' % (k, v)
 
+def dpath(dict_, path):
+    # copy-and-pasted this from drivel.components.stats
+    result = dict_
+    try:
+        for i in path:
+            if isinstance(result, dict):
+                result = result[i]  # KeyError
+            elif isinstance(result, (tuple, list)):
+                i = int(i)  # ValueError
+                result = result[i]  # IndexError
+            else:
+                raise PathError()
+    except (KeyError, ValueError, IndexError), e:
+        raise PathError()
+    return result
+
+def combine(stats, key):
+    combined = 0
+    for v in stats.values():
+        val = dpath(v, key)
+        assert isinstance(val, (int, float))
+        combined += val
+    return combined
+
 if __name__ == '__main__':
     parser = optparse.OptionParser()
     option, args = parser.parse_args()
