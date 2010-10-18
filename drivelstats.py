@@ -55,15 +55,15 @@ def dpath(dict_, path):
         return None
     return result
 
-def combine(stats, key):
-    combined = 0
+def combine(stats, key, combiner=sum):
+    combined = []
     for v in stats.values():
         val = dpath(v, key)
         if val is None:
             continue
         assert isinstance(val, (int, float)), val
-        combined += val
-    return combined
+        combined.append(val)
+    return combiner(combined)
 
 if __name__ == '__main__':
     parser = optparse.OptionParser()
