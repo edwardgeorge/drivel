@@ -97,7 +97,7 @@ class StatsCollectorComponent(WSGIComponent):
             self.initial_discovery_sent = True
             eventlet.sleep(1)
         stats = self.collect()
-        if path
+        if path:
             try:
                 stats = dpath(stats, path)
             except PathError, e:
