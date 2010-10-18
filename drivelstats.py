@@ -50,9 +50,9 @@ def dpath(dict_, path):
                 i = int(i)  # ValueError
                 result = result[i]  # IndexError
             else:
-                raise PathError()
+                return None
     except (KeyError, ValueError, IndexError), e:
-        raise PathError()
+        return None
     return result
 
 def combine(stats, key):
