@@ -59,7 +59,9 @@ def combine(stats, key):
     combined = 0
     for v in stats.values():
         val = dpath(v, key)
-        assert isinstance(val, (int, float))
+        if val is None:
+            continue
+        assert isinstance(val, (int, float)), val
         combined += val
     return combined
 
