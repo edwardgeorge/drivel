@@ -87,7 +87,8 @@ class WSGIServer(object):
         self.timeout = config.getint('maxwait')
         self.server_pool.resize(self.maxconns)
         self.watcher_pool.resize(self.maxconns)
-        self.authbackend = config.import_('auth_backend')(self)
+        if 'auth_backend' in config:
+            self.authbackend = config.import_('auth_backend')(self)
         return self
 
     class Logger(object):
