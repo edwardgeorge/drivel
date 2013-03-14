@@ -49,6 +49,8 @@ class Connections(object):
         self.get_ready = []
         self._event = Event()
         self.update_event = Event()
+        self.update_listeners_event = Event()
+        self._listener_gt = None
         self.ALL = SEND_TO_ALL
 
     def filter(self, msg):
@@ -86,20 +88,43 @@ class Connections(object):
         self._fire_handlers(self.dhandlers,
                             sock, errno, aliases, data_to_send)
 
+    def _listener(self):
+        logger = Logger('drivel.messaging.connections.Connections._listener')
+        while True:
+            try:
+                if self.update_listeners_event.ready():
+                    self.update_listeners_event = Event()
+                with EventWatch(self.update_listeners_event):
+                    r, _, _ = self._select_for_read(self.listeners)
+                if r:
+                    s, addr = r[0].accept()
+                    logger.info('connection from %s:%d' % addr)
+                    self.add(s)
+                    self._fire_handlers(self.chandlers, s, addr)
+            except EventReady:
+                pass
+
+    def stop_listening(self):
+        if self._listener_gt is not None:
+            self._listener_gt.kill()
+        listeners = self.listeners
+        self.listeners = []
+        for s in listeners:
+            try:
+                s.close()
+            except IOError:
+                pass
+        return listeners
+
     def listen(self, (addr, port)):
         logger = Logger('drivel.messaging.connections.Connections.listen')
         sock = eventlet.listen((addr, port))
-        sockname = sock.fd.getsockname()
+        sockname = sock.getsockname()
         logger.info('listening on %s:%d' % sockname)
         self.listeners.append(sock)
 
-        def listener(sock):
-            while True:
-                s, addr = sock.accept()
-                logger.info('connection from %s:%d' % addr)
-                self.add(s)
-                self._fire_handlers(self.chandlers, s, addr)
-        eventlet.spawn(listener, sock)
+        if self._listener_gt is None or self._listener_gt.dead:
+            self._listener_gt = eventlet.spawn(self._listener)
         return sockname
 
     def connect(self, (addr, port), target=None):
@@ -125,14 +150,14 @@ class Connections(object):
     def alias(self, from_, to):
         self.register_target(to, self.targets[from_])
 
-    def _select_for_read(self, timeout=None):
+    def _select_for_read(self, sockets, timeout=None):
         try:
-            return select.select(self.sockets, [], [], timeout=timeout)
+            return select.select(sockets, [], [], timeout=timeout)
         except ValueError:
             for i in self.sockets:
                 if i.fileno() == -1:
                     self.sockets.remove(i)
-            return select.select(self.sockets, [], [], timeout=timeout)
+            return select.select(sockets, [], [], timeout=timeout)
 
     def get(self):
         self._event.wait()
@@ -147,7 +172,7 @@ class Connections(object):
                     if self.update_event.ready():
                         self.update_event = Event()
                     with EventWatch(self.update_event):
-                        ready, _, _ = self._select_for_read()
+                        ready, _, _ = self._select_for_read(self.sockets)
                 if ready:
                     return self._do_get_from_sock(ready[0])
             except EventReady:
