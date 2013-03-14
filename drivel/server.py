@@ -20,7 +20,6 @@ import uuid
 # third-party
 import eventlet
 from eventlet import backdoor
-from eventlet import greenthread
 from eventlet import hubs
 
 # greened modules
@@ -29,7 +28,6 @@ from eventlet.green import socket
 # local
 import drivel.logstuff
 from drivel.messaging.broker import Broker
-from drivel.utils import debug
 
 __all__ = ['Server', 'start']
 
@@ -47,12 +45,6 @@ def statdumper(server, interval):
     while True:
         pprint.pprint(server.stats())
         eventlet.sleep(interval)
-
-
-def timed_switch_out(self):
-    self._last_switch_out = time.time()
-
-greenthread.GreenThread.switch_out = timed_switch_out
 
 
 class safe_exit(object):
@@ -137,7 +129,6 @@ class Server(object):
             eventlet.spawn(backdoor.backdoor_server,
                 listen(('127.0.0.1', bdport)),
                 locals={'server': self,
-                        'debug': debug,
                         'exit': safe_exit(),
                         'quit': safe_exit(),
                         'stats': lambda: pprint.pprint(self.stats()),
