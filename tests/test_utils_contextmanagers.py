@@ -20,18 +20,12 @@ def test_ready_event():
     with EventWatch(e):
         raise Exception()
 
-def test_for_gt_leak():
-    import gc
-    import weakref
-    g = None
-    w = EventWatch()
+def test_proxy_removed_from_waiters():
+    e = Event()
+    w = EventWatch(e)
     with w as e:
-        g = weakref.ref(w._g)
-    # check greenthread is dead
-    assert not bool(g())
-    gc.collect()
-    # check it's deleted
-    assert g() is None
+        proxy = w.proxy
+    assert proxy not in e._waiters
 
 @tools.raises(EventReady)
 def test_throw_is_immediate():
