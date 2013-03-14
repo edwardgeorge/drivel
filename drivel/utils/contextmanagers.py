@@ -1,4 +1,3 @@
-import eventlet
 from eventlet import greenthread
 from eventlet.event import Event
 

@@ -6,12 +6,14 @@ from nose import tools
 from drivel.utils.contextmanagers import EventReady
 from drivel.utils.contextmanagers import EventWatch
 
+
 @tools.raises(EventReady)
 def test():
     with EventWatch() as e:
         e.send(None)
         eventlet.sleep(1)
         raise Exception()
+
 
 @tools.raises(EventReady)
 def test_ready_event():
@@ -20,12 +22,14 @@ def test_ready_event():
     with EventWatch(e):
         raise Exception()
 
+
 def test_proxy_removed_from_waiters():
     e = Event()
     w = EventWatch(e)
     with w as e:
         proxy = w.proxy
     assert proxy not in e._waiters
+
 
 @tools.raises(EventReady)
 def test_throw_is_immediate():
