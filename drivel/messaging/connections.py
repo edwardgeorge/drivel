@@ -27,7 +27,8 @@ class ConnectionError(Exception):
         if self.errno is not None:
             e = self.errno
             return "fd %d [%d %s]: %s" % (self.sock.fileno(), e,
-                errno.errorcode[e], os.strerror(e))
+                                          errno.errorcode[e],
+                                          os.strerror(e))
         return 'EOF for fd %d' % self.sock.fileno()
 
 
@@ -127,7 +128,7 @@ class Connections(object):
     def _select_for_read(self, timeout=None):
         try:
             return select.select(self.sockets, [], [], timeout=timeout)
-        except ValueError, e:
+        except ValueError:
             for i in self.sockets:
                 if i.fileno() == -1:
                     self.sockets.remove(i)
@@ -149,7 +150,7 @@ class Connections(object):
                         ready, _, _ = self._select_for_read()
                 if ready:
                     return self._do_get_from_sock(ready[0])
-            except EventReady, e:
+            except EventReady:
                 pass
 
     def _do_get_from_sock(self, sock):
@@ -173,19 +174,19 @@ class Connections(object):
             for i in self.sockets:
                 try:
                     self._send_to(i, data)
-                except ConnectionError, e:
+                except ConnectionError:
                     pass
         elif isinstance(to, (tuple, list)):
             for i in to:
                 try:
                     self.send(i, data)
-                except ConnectionError, e:
+                except ConnectionError:
                     pass
         else:
             for target in list(self.targets[to]):  # raises KeyError
                 try:
                     self._send_to(target, data)
-                except ConnectionError, e:
+                except ConnectionError:
                     pass
 
     def send_heartbeat(self):
