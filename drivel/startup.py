@@ -72,9 +72,6 @@ def main():
     parser.add_option('-s', '--statdump', dest='statdump',
         metavar='INTERVAL', type="int",
         help="dump stats at INTERVAL seconds")
-    parser.add_option('-N', '--no-http-logs', dest='nohttp',
-        action="store_true",
-        help="disable logging of http requests from wsgi server")
     parser.add_option(
         '-D',
         '--no-daemon',
