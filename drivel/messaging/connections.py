@@ -44,6 +44,7 @@ class Connections(object):
         self.listeners = []
         self.targets = {}
         self.dhandlers = []
+        self.chandlers = []
         self.get_ready = []
         self._event = Event()
         self.update_event = Event()
@@ -60,22 +61,29 @@ class Connections(object):
     def add_disconnect_handler(self, handler):
         self.dhandlers.append(handler)
 
+    def add_connect_handler(self, handler):
+        self.chandlers.append(handler)
+
+    def _fire_handlers(self, handlers, *args, **kwargs):
+        for handler in handlers[:]:
+            if isinstance(handler, weakref.ref):
+                _handler = handler
+                handler = handler()
+                if handler is None:
+                    handlers.remove(_handler)
+                    continue
+            eventlet.spawn(handler, *args, **kwargs)
+
     def disconnected(self, sock, errno=None, data_to_send=None):
         self.sockets.remove(sock)
         aliases = self._names_for_connection(sock)
         for a in aliases:
             try:
                 self.targets[a].remove(sock)
-            except KeyError, e:
+            except KeyError:
                 pass
-        for handler in self.dhandlers:
-            if isinstance(handler, weakref.ref):
-                _handler = handler
-                handler = handler()
-                if handler is None:
-                    self.dhandlers.remove(_handler)
-                    continue
-            eventlet.spawn(handler, sock, errno, aliases, data_to_send)
+        self._fire_handlers(self.dhandlers,
+                            sock, errno, aliases, data_to_send)
 
     def listen(self, (addr, port)):
         logger = Logger('drivel.messaging.connections.Connections.listen')
@@ -89,6 +97,7 @@ class Connections(object):
                 s, addr = sock.accept()
                 logger.info('connection from %s:%d' % addr)
                 self.add(s)
+                self._fire_handlers(self.chandlers, s, addr)
         eventlet.spawn(listener, sock)
         return sockname
 
