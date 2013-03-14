@@ -1,4 +1,3 @@
-from functools import partial
 import weakref
 
 import eventlet
@@ -12,16 +11,12 @@ class CancelOperation(Exception):
 
 
 class Component(object):
-    subscription = None
     asynchronous = True  # spawn a coroutine for each message
     message_pool_size = 1000  # set to use a pool rather than coroutines
 
-    def __init__(self, server, name=None):
-        self.server = server
+    def __init__(self, name=None):
         self.registered_name = name
         self._mqueue = queue.Queue()
-        assert self.subscription is not None
-        self.server.subscribe(self.subscription, self._mqueue)
         self._greenlet = eventlet.spawn(self._process)
         self._coropool = None
         self.received_messages = 0
@@ -35,11 +30,6 @@ class Component(object):
             self._coropool = eventlet.GreenPool(size=1)
             self._execute = lambda func, *args: self._coropool.spawn(func,
                 *args).wait()
-        self.log = partial(self.server.log, self.__class__.__name__)
-
-    @property
-    def config(self):
-        return self.server.config
 
     def _process(self):
         while True:
