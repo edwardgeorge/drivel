@@ -108,13 +108,15 @@ class Connections(object):
         if self._listener_gt is not None:
             self._listener_gt.kill()
         listeners = self.listeners
+        addresses = []
         self.listeners = []
         for s in listeners:
+            addresses.append(s.getsockname())
             try:
                 s.close()
             except IOError:
                 pass
-        return listeners
+        return addresses
 
     def listen(self, (addr, port)):
         logger = Logger('drivel.messaging.connections.Connections.listen')
