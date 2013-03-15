@@ -8,7 +8,7 @@ from eventlet.semaphore import Semaphore
 from drivel.utils.importing import import_preferential
 pickle = import_preferential('cPickle', 'pickle')
 
-LEN_HEADER = struct.Struct('>I')
+LEN_HEADER = struct.Struct('!I')
 
 
 class EOF(Exception):
