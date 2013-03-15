@@ -36,7 +36,7 @@ class Messaging(object):
             return True
         return False
 
-    def wait(self, timeout=None):
+    def wait(self, timeout=None, _do_recv=True):
         timer = eventlet.Timeout(timeout) if timeout is not None else None
         try:
             while True:
@@ -45,16 +45,26 @@ class Messaging(object):
                                       self.buff[self._len:])
                     self._len = None
                     return self._ser.loads(ret)
-                else:
+                elif _do_recv:
                     ret = self.sock.recv(self._bsz)
                     if not ret:
                         raise EOF()
                     self.buff = self.buff + ret
+                else:
+                    return
         except eventlet.Timeout:
             return None
         finally:
             if timer:
                 timer.cancel()
+
+    def _do_recv(self):
+        # for internal use
+        ret = self.sock.recv(self._bsz)
+        if not ret:
+            return
+        self.buff = self.buff + ret
+        return len(ret)
 
     def send(self, data):
         data = self._ser.dumps(data)
