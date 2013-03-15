@@ -105,6 +105,12 @@ class Connections(object):
                 pass
         return addresses
 
+    def shutdown(self):
+        sockets = self._sockets
+        self._sockets = []
+        for sock in sockets:
+            sock.shutdown()
+
     def listen(self, (addr, port)):
         sock = eventlet.listen((addr, port))
         sockname = sock.getsockname()

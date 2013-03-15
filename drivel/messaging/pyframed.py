@@ -2,6 +2,7 @@ from __future__ import with_statement
 import struct
 
 import eventlet
+from eventlet.green import socket
 from eventlet.semaphore import Semaphore
 
 from drivel.utils.importing import import_preferential
@@ -63,3 +64,7 @@ class Messaging(object):
     def send_concurrent(self, data):
         with self._sem:
             self.send(data)
+
+    def shutdown(self):
+        self.sock.shutdown(socket.SHUT_WR)
+        self.sock.close()
