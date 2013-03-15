@@ -109,7 +109,10 @@ class Connections(object):
         sockets = self._sockets
         self._sockets = []
         for sock in sockets:
-            sock.shutdown()
+            try:
+                sock.shutdown()
+            except IOError:
+                pass
 
     def listen(self, (addr, port)):
         sock = eventlet.listen((addr, port))
