@@ -7,6 +7,7 @@ import weakref
 import eventlet
 from eventlet.event import Event
 from eventlet.green import select
+from eventlet import hubs
 
 from drivel.messaging.pyframed import Messaging, EOF
 from drivel.utils.contextmanagers import EventWatch, EventReady
@@ -43,14 +44,13 @@ class Connections(object):
         self.id = ownid
         self.sockets = []
         self.listeners = []
+        self.fd_listeners = {}
         self.targets = {}
         self.dhandlers = []
         self.chandlers = []
         self.get_ready = []
         self._event = Event()
         self.update_event = Event()
-        self.update_listeners_event = Event()
-        self._listener_gt = None
         self.ALL = SEND_TO_ALL
 
     def filter(self, msg):
@@ -88,31 +88,19 @@ class Connections(object):
         self._fire_handlers(self.dhandlers,
                             sock, errno, aliases, data_to_send)
 
-    def _listener(self):
-        while True:
-            try:
-                if self.update_listeners_event.ready():
-                    self.update_listeners_event = Event()
-                with EventWatch(self.update_listeners_event):
-                    r, _, _ = self._select_for_read(self.listeners)
-                if r:
-                    s, addr = r[0].accept()
-                    logger.info('connection from %s:%d' % addr)
-                    self.add(s)
-                    self._fire_handlers(self.chandlers, s, addr)
-            except EventReady:
-                pass
-
     def stop_listening(self):
-        if self._listener_gt is not None:
-            self._listener_gt.kill()
-        listeners = self.listeners
         addresses = []
+        listeners = self.listeners
+        fd_listeners = self.fd_listeners
         self.listeners = []
-        for s in listeners:
-            addresses.append(s.getsockname())
+        self.fd_listeners = {}
+        hub = hubs.get_hub()
+        for sock, hublistener in fd_listeners.itervalues():
+            addresses.append(sock.getsockname())
+            listeners.remove(sock)
+            hub.remove(hublistener)
             try:
-                s.close()
+                sock.close()
             except IOError:
                 pass
         return addresses
@@ -121,11 +109,23 @@ class Connections(object):
         sock = eventlet.listen((addr, port))
         sockname = sock.getsockname()
         logger.info('listening on %s:%d' % sockname)
-        self.listeners.append(sock)
-
-        if self._listener_gt is None or self._listener_gt.dead:
-            self._listener_gt = eventlet.spawn(self._listener)
+        self._setup_listener(sock)
         return sockname
+
+    def _setup_listener(self, sock):
+        self.listeners.append(sock)
+        hub = hubs.get_hub()
+        fd = sock.fileno()
+        hublistener = hub.add(hub.READ, fd, self._fd_connect)
+        self.fd_listeners[fd] = (sock, hublistener)
+
+    def _fd_connect(self, fd):
+        print '_fd_connect called', fd
+        sock, hublistener = self.fd_listeners[fd]
+        connsock, addr = sock.accept()
+        logger.info('connection from %s:%d' % addr)
+        self.add(connsock)
+        self._fire_handlers(self.chandlers, connsock, addr)
 
     def connect(self, (addr, port), target=None):
         sock = eventlet.connect((addr, port))
