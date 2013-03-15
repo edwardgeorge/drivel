@@ -6,7 +6,7 @@ import eventlet
 from drivel.event import EventManager, RETURN_SUB
 from drivel.messaging.connections import Connections
 
-Logger = logging.getLogger
+logger = logging.getLogger(__name__)
 
 SUB_DISCOVERY = 'subscription-discovery'
 SUB_BROADCAST = 'subscription-broadcast'
@@ -64,8 +64,6 @@ class Broker(object):
         self.send(from_, self.SUB_DISCOVERY, self.id, link_event=False)
 
     def handle_discovery_request(self, from_):
-        logger = Logger('drivel.messaging.broker.Broker'
-            '.handle_discovery_request')
         logger.info('got discovery request from %s' % from_)
         self.send(from_, self.SUB_BROADCAST, (self.id,
             self.subscriptions.keys()), link_event=False)
@@ -73,8 +71,6 @@ class Broker(object):
             self.discover_subscriptions(from_)
 
     def handle_discovery_response(self, message):
-        logger = Logger('drivel.messaging.broker.Broker'
-            '.handle_discovery_response')
         remote_id, subscriptions = message
         logger.info('got discovery response from %s' % remote_id)
         for sub in subscriptions:
@@ -100,7 +96,6 @@ class Broker(object):
         self.subscriptions.pop(key, None)
 
     def process(self):
-        logger = Logger('drivel.messaging.broker.Broker.process')
         #while self.continue_processing:
         while True:
             try:
@@ -109,13 +104,11 @@ class Broker(object):
                 logger.exception('error in process: %s' % (e, ))
 
     def process_one(self):
-        logger = Logger('drivel.messaging.broker.Broker.process_one')
         eventid, subscription, message = self._mqueue.get()
         logger.debug('msg process: %r, %r' % (eventid, subscription))
         self.process_msg(eventid, subscription, message)
 
     def process_msg(self, eventid, subscription, message):
-        logger = Logger('drivel.messaging.broker.Broker.process_msg')
         self.msgs_processed += 1
         event = self.events.returner_for(eventid)
         if subscription == RETURN_SUB:
@@ -135,14 +128,12 @@ class Broker(object):
             pass
 
     def process_now(self, message):
-        logger = Logger('drivel.messaging.broker.Broker.process_one')
         try:
             self.process_msg(*message)
         except Exception, e:
             logger.exception('error in process_now: %s' % (e, ))
 
     def listen(self):
-        logger = Logger('drivel.messaging.broker.Broker.listen')
         #while self.continue_listening:
         while True:
             try:
@@ -151,7 +142,6 @@ class Broker(object):
                 logger.error('error in listen: %s' % (e, ))
 
     def listen_and_process(self):
-        logger = Logger('drivel.messaging.broker.Broker.listen')
         #while self.continue_listening:
         while True:
             try:
@@ -183,7 +173,6 @@ class Broker(object):
         }
 
     def send(self, to, subscription, message, link_event=True):
-        logger = Logger('drivel.messaging.broker.Broker.send')
         if link_event:
             event, eventid = self.events.create()
         else:
