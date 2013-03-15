@@ -120,7 +120,6 @@ class Connections(object):
         self._fd_listeners[fd] = (sock, hublistener)
 
     def _fd_connect(self, fd):
-        print '_fd_connect called', fd
         sock, hublistener = self._fd_listeners[fd]
         connsock, addr = sock.accept()
         logger.info('connection from %s:%d' % addr)
