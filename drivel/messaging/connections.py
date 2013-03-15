@@ -11,7 +11,7 @@ from eventlet.green import select
 from drivel.messaging.pyframed import Messaging, EOF
 from drivel.utils.contextmanagers import EventWatch, EventReady
 
-Logger = logging.getLogger
+logger = logging.getLogger(__name__)
 
 HEARTBEAT = 'heartbeat'
 SEND_TO_ALL = '*'
@@ -89,7 +89,6 @@ class Connections(object):
                             sock, errno, aliases, data_to_send)
 
     def _listener(self):
-        logger = Logger('drivel.messaging.connections.Connections._listener')
         while True:
             try:
                 if self.update_listeners_event.ready():
@@ -119,7 +118,6 @@ class Connections(object):
         return addresses
 
     def listen(self, (addr, port)):
-        logger = Logger('drivel.messaging.connections.Connections.listen')
         sock = eventlet.listen((addr, port))
         sockname = sock.getsockname()
         logger.info('listening on %s:%d' % sockname)
