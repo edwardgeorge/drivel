@@ -42,15 +42,15 @@ class Connections(object):
     def __init__(self, name, ownid):
         self.name = name
         self.id = ownid
-        self.sockets = []
-        self.listeners = []
-        self.fd_listeners = {}
-        self.targets = {}
-        self.dhandlers = []
-        self.chandlers = []
-        self.get_ready = []
+        self._sockets = []
+        self._listeners = []
+        self._fd_listeners = {}
+        self._targets = {}
+        self._dhandlers = []
+        self._chandlers = []
+        self._get_ready = []
         self._event = Event()
-        self.update_event = Event()
+        self._update_event = Event()
         self.ALL = SEND_TO_ALL
 
     def filter(self, msg):
@@ -59,13 +59,13 @@ class Connections(object):
         return True
 
     def register_target(self, name, sock):
-        self.targets.setdefault(name, set()).add(sock)
+        self._targets.setdefault(name, set()).add(sock)
 
     def add_disconnect_handler(self, handler):
-        self.dhandlers.append(handler)
+        self._dhandlers.append(handler)
 
     def add_connect_handler(self, handler):
-        self.chandlers.append(handler)
+        self._chandlers.append(handler)
 
     def _fire_handlers(self, handlers, *args, **kwargs):
         for handler in handlers[:]:
@@ -78,22 +78,22 @@ class Connections(object):
             eventlet.spawn(handler, *args, **kwargs)
 
     def _disconnected(self, sock, errno=None, data_to_send=None):
-        self.sockets.remove(sock)
+        self._sockets.remove(sock)
         aliases = self._names_for_connection(sock)
         for a in aliases:
             try:
-                self.targets[a].remove(sock)
+                self._targets[a].remove(sock)
             except KeyError:
                 pass
-        self._fire_handlers(self.dhandlers,
+        self._fire_handlers(self._dhandlers,
                             sock, errno, aliases, data_to_send)
 
     def stop_listening(self):
         addresses = []
-        listeners = self.listeners
-        fd_listeners = self.fd_listeners
-        self.listeners = []
-        self.fd_listeners = {}
+        listeners = self._listeners
+        fd_listeners = self._fd_listeners
+        self._listeners = []
+        self._fd_listeners = {}
         hub = hubs.get_hub()
         for sock, hublistener in fd_listeners.itervalues():
             addresses.append(sock.getsockname())
@@ -113,19 +113,19 @@ class Connections(object):
         return sockname
 
     def _setup_listener(self, sock):
-        self.listeners.append(sock)
+        self._listeners.append(sock)
         hub = hubs.get_hub()
         fd = sock.fileno()
         hublistener = hub.add(hub.READ, fd, self._fd_connect)
-        self.fd_listeners[fd] = (sock, hublistener)
+        self._fd_listeners[fd] = (sock, hublistener)
 
     def _fd_connect(self, fd):
         print '_fd_connect called', fd
-        sock, hublistener = self.fd_listeners[fd]
+        sock, hublistener = self._fd_listeners[fd]
         connsock, addr = sock.accept()
         logger.info('connection from %s:%d' % addr)
         self.add(connsock)
-        self._fire_handlers(self.chandlers, connsock, addr)
+        self._fire_handlers(self._chandlers, connsock, addr)
 
     def connect(self, (addr, port), target=None):
         sock = eventlet.connect((addr, port))
@@ -136,43 +136,43 @@ class Connections(object):
         self._add(msgn, target)
 
     def _add(self, msgn, target=None):
-        self.sockets.append(msgn)
+        self._sockets.append(msgn)
         if target is not None:
             self.register_target(target, msgn)
         if not self._event.ready():
             self._event.send(True)
-        if not self.update_event.ready():
-            self.update_event.send(True)
+        if not self._update_event.ready():
+            self._update_event.send(True)
 
     def _names_for_connection(self, conn):
-        return [k for k, v in self.targets.items() if conn in v]
+        return [k for k, v in self._targets.items() if conn in v]
 
     def alias(self, from_, to):
-        self.register_target(to, self.targets[from_])
+        self.register_target(to, self._targets[from_])
 
     def _select_for_read(self, sockets, timeout=None):
         try:
             return select.select(sockets, [], [], timeout=timeout)
         except ValueError:
-            for i in self.sockets:
+            for i in self._sockets:
                 if i.fileno() == -1:
-                    self.sockets.remove(i)
+                    self._sockets.remove(i)
             return select.select(sockets, [], [], timeout=timeout)
 
     def get(self):
         self._event.wait()
         while True:
             try:
-                if self.get_ready:
-                    ready = [self.get_ready.pop(0)]
+                if self._get_ready:
+                    ready = [self._get_ready.pop(0)]
                     if not ready[0].peek():
                         #continue
                         pass
                 else:
-                    if self.update_event.ready():
-                        self.update_event = Event()
-                    with EventWatch(self.update_event):
-                        ready, _, _ = self._select_for_read(self.sockets)
+                    if self._update_event.ready():
+                        self._update_event = Event()
+                    with EventWatch(self._update_event):
+                        ready, _, _ = self._select_for_read(self._sockets)
                 if ready:
                     return self._do_get_from_sock(ready[0])
             except EventReady:
@@ -184,7 +184,7 @@ class Connections(object):
             self.register_target(name, sock)
             self.register_target(senderid, sock)
             if sock.peek():
-                self.get_ready.append(sock)
+                self._get_ready.append(sock)
             if self.filter(data):
                 return senderid, data
         except EOF, e:
@@ -196,7 +196,7 @@ class Connections(object):
 
     def send(self, to, data):
         if to == self.ALL or to is None:
-            for i in self.sockets:
+            for i in self._sockets:
                 try:
                     self._send_to(i, data)
                 except ConnectionError:
@@ -208,7 +208,7 @@ class Connections(object):
                 except ConnectionError:
                     pass
         else:
-            for target in list(self.targets[to]):  # raises KeyError
+            for target in list(self._targets[to]):  # raises KeyError
                 try:
                     self._send_to(target, data)
                 except ConnectionError:
@@ -228,4 +228,4 @@ class Connections(object):
             raise ConnectionError(msgn, e.errno, None)
 
     def __len__(self):
-        return len(self.sockets)
+        return len(self._sockets)

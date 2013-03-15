@@ -103,7 +103,7 @@ def test_EPIPE_on_connection():
     b.close()
     c.send('remote', 'message')
     # the bad file-descriptor is silently removed
-    assert len(c.sockets) == 0
+    assert len(c) == 0
 
 def test_EPIPE_on_connection_during_multisend():
     a, b = socket.socketpair()
@@ -124,7 +124,7 @@ def test_EBADF_on_connection():
     # will block here on this timeout
     with eventlet.Timeout(0.1):
         tools.assert_raises(eventlet.Timeout, c.get)
-    assert len(c.sockets) == 0
+    assert len(c) == 0
 
 def test_updated_sockets_during_select():
     a, b = socket.socketpair()
