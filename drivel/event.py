@@ -67,7 +67,7 @@ class EventManager(object):
             return NullEvent()
         try:
             return self.events[origin]
-        except KeyError, e:
+        except KeyError:
             return NullEvent()
 
     def return_(self, id, message):

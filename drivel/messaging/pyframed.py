@@ -1,5 +1,4 @@
 from __future__ import with_statement
-import pickle
 import struct
 
 import eventlet
@@ -30,7 +29,7 @@ class Messaging(object):
     def peek(self):
         if self._len is None and len(self.buff) >= LEN_HEADER.size:
             header, self.buff = (self.buff[:LEN_HEADER.size],
-                self.buff[LEN_HEADER.size:])
+                                 self.buff[LEN_HEADER.size:])
             (self._len,) = LEN_HEADER.unpack(header)
         if self._len is not None and self._len <= len(self.buff):
             return True
@@ -42,7 +41,7 @@ class Messaging(object):
             while True:
                 if self.peek():
                     ret, self.buff = (self.buff[:self._len],
-                        self.buff[self._len:])
+                                      self.buff[self._len:])
                     self._len = None
                     return self._ser.loads(ret)
                 else:
@@ -50,7 +49,7 @@ class Messaging(object):
                     if not ret:
                         raise EOF()
                     self.buff = self.buff + ret
-        except eventlet.Timeout, e:
+        except eventlet.Timeout:
             return None
         finally:
             if timer:

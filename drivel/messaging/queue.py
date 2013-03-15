@@ -10,7 +10,7 @@ class Messaging(object):
     def wait(self, timeout=None):
         try:
             return self.queue.get(timeout=timeout)
-        except Empty, e:
+        except Empty:
             return None
 
     def send(self, data):
