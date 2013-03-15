@@ -77,7 +77,7 @@ class Connections(object):
                     continue
             eventlet.spawn(handler, *args, **kwargs)
 
-    def disconnected(self, sock, errno=None, data_to_send=None):
+    def _disconnected(self, sock, errno=None, data_to_send=None):
         self.sockets.remove(sock)
         aliases = self._names_for_connection(sock)
         for a in aliases:
@@ -188,10 +188,10 @@ class Connections(object):
             if self.filter(data):
                 return senderid, data
         except EOF, e:
-            self.disconnected(sock, None)
+            self._disconnected(sock, None)
             raise ConnectionClosed(sock, None)
         except IOError, e:
-            self.disconnected(sock, e.errno)
+            self._disconnected(sock, e.errno)
             raise ConnectionError(sock, e.errno, None)
 
     def send(self, to, data):
@@ -224,7 +224,7 @@ class Connections(object):
         try:
             msgn.send_concurrent((self.name, self.id, data))
         except IOError, e:
-            self.disconnected(msgn, e.errno)
+            self._disconnected(msgn, e.errno)
             raise ConnectionError(msgn, e.errno, None)
 
     def __len__(self):
