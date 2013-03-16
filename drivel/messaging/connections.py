@@ -53,40 +53,50 @@ class Connections(object):
         self._update_event = Event()
         self.ALL = SEND_TO_ALL
 
-    def filter(self, msg):
-        if msg == HEARTBEAT:
-            return False
-        return True
+    # public api
 
-    def register_target(self, name, sock):
-        self._targets.setdefault(name, set()).add(sock)
+    def listen(self, (addr, port)):
+        sock = eventlet.listen((addr, port))
+        sockname = sock.getsockname()
+        logger.info('listening on %s:%d' % sockname)
+        self._setup_listener(sock)
+        return sockname
 
-    def add_disconnect_handler(self, handler):
-        self._dhandlers.append(handler)
+    def connect(self, (addr, port), target=None):
+        sock = eventlet.connect((addr, port))
+        self.add(sock, target)
+
+    def send(self, to, data):
+        if to == self.ALL or to is None:
+            for i in self._sockets:
+                try:
+                    self._send_to(i, data)
+                except ConnectionError:
+                    pass
+        elif isinstance(to, (tuple, list)):
+            for i in to:
+                try:
+                    self.send(i, data)
+                except ConnectionError:
+                    pass
+        else:
+            for target in list(self._targets[to]):  # raises KeyError
+                try:
+                    self._send_to(target, data)
+                except ConnectionError:
+                    pass
+
+    def send_heartbeat(self):
+        self.send_to_all(HEARTBEAT)
+
+    def send_to_all(self, data):
+        self.send(self.ALL, data)
 
     def add_connect_handler(self, handler):
         self._chandlers.append(handler)
 
-    def _fire_handlers(self, handlers, *args, **kwargs):
-        for handler in handlers[:]:
-            if isinstance(handler, weakref.ref):
-                _handler = handler
-                handler = handler()
-                if handler is None:
-                    handlers.remove(_handler)
-                    continue
-            eventlet.spawn(handler, *args, **kwargs)
-
-    def _disconnected(self, sock, errno=None, data_to_send=None):
-        self._sockets.remove(sock)
-        aliases = self._names_for_connection(sock)
-        for a in aliases:
-            try:
-                self._targets[a].remove(sock)
-            except KeyError:
-                pass
-        self._fire_handlers(self._dhandlers,
-                            sock, errno, aliases, data_to_send)
+    def add_disconnect_handler(self, handler):
+        self._dhandlers.append(handler)
 
     def stop_listening(self):
         addresses = []
@@ -114,12 +124,50 @@ class Connections(object):
             except IOError:
                 pass
 
-    def listen(self, (addr, port)):
-        sock = eventlet.listen((addr, port))
-        sockname = sock.getsockname()
-        logger.info('listening on %s:%d' % sockname)
-        self._setup_listener(sock)
-        return sockname
+    # internals
+
+    def add(self, sock, target=None):
+        msgn = Messaging(sock)
+        self._add(msgn, target)
+
+    def filter(self, msg):
+        if msg == HEARTBEAT:
+            return False
+        return True
+
+    def alias(self, from_, to):
+        self._register_target(to, self._targets[from_])
+
+    # data model
+
+    def __len__(self):
+        return len(self._sockets)
+
+    # private
+
+    def _register_target(self, name, sock):
+        self._targets.setdefault(name, set()).add(sock)
+
+    def _fire_handlers(self, handlers, *args, **kwargs):
+        for handler in handlers[:]:
+            if isinstance(handler, weakref.ref):
+                _handler = handler
+                handler = handler()
+                if handler is None:
+                    handlers.remove(_handler)
+                    continue
+            eventlet.spawn(handler, *args, **kwargs)
+
+    def _disconnected(self, sock, errno=None, data_to_send=None):
+        self._sockets.remove(sock)
+        aliases = self._names_for_connection(sock)
+        for a in aliases:
+            try:
+                self._targets[a].remove(sock)
+            except KeyError:
+                pass
+        self._fire_handlers(self._dhandlers,
+                            sock, errno, aliases, data_to_send)
 
     def _setup_listener(self, sock):
         self._listeners.append(sock)
@@ -135,18 +183,10 @@ class Connections(object):
         self.add(connsock)
         self._fire_handlers(self._chandlers, connsock, addr)
 
-    def connect(self, (addr, port), target=None):
-        sock = eventlet.connect((addr, port))
-        self.add(sock, target)
-
-    def add(self, sock, target=None):
-        msgn = Messaging(sock)
-        self._add(msgn, target)
-
     def _add(self, msgn, target=None):
         self._sockets.append(msgn)
         if target is not None:
-            self.register_target(target, msgn)
+            self._register_target(target, msgn)
         if not self._event.ready():
             self._event.send(True)
         if not self._update_event.ready():
@@ -154,9 +194,6 @@ class Connections(object):
 
     def _names_for_connection(self, conn):
         return [k for k, v in self._targets.items() if conn in v]
-
-    def alias(self, from_, to):
-        self.register_target(to, self._targets[from_])
 
     def _select_for_read(self, sockets, timeout=None):
         try:
@@ -189,8 +226,8 @@ class Connections(object):
     def _do_get_from_sock(self, sock):
         try:
             name, senderid, data = sock.wait()
-            self.register_target(name, sock)
-            self.register_target(senderid, sock)
+            self._register_target(name, sock)
+            self._register_target(senderid, sock)
             if sock.peek():
                 self._get_ready.append(sock)
             if self.filter(data):
@@ -202,38 +239,9 @@ class Connections(object):
             self._disconnected(sock, e.errno)
             raise ConnectionError(sock, e.errno, None)
 
-    def send(self, to, data):
-        if to == self.ALL or to is None:
-            for i in self._sockets:
-                try:
-                    self._send_to(i, data)
-                except ConnectionError:
-                    pass
-        elif isinstance(to, (tuple, list)):
-            for i in to:
-                try:
-                    self.send(i, data)
-                except ConnectionError:
-                    pass
-        else:
-            for target in list(self._targets[to]):  # raises KeyError
-                try:
-                    self._send_to(target, data)
-                except ConnectionError:
-                    pass
-
-    def send_heartbeat(self):
-        self.send_to_all(HEARTBEAT)
-
-    def send_to_all(self, data):
-        self.send(self.ALL, data)
-
     def _send_to(self, msgn, data):
         try:
             msgn.send_concurrent((self.name, self.id, data))
         except IOError, e:
             self._disconnected(msgn, e.errno)
             raise ConnectionError(msgn, e.errno, None)
-
-    def __len__(self):
-        return len(self._sockets)
