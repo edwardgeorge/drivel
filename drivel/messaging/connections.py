@@ -6,6 +6,7 @@ import weakref
 
 import eventlet
 from eventlet.event import Event
+from eventlet import greenio
 from eventlet.green import select
 from eventlet import hubs
 
@@ -178,7 +179,10 @@ class Connections(object):
 
     def _fd_connect(self, fd):
         sock, hublistener = self._fd_listeners[fd]
-        connsock, addr = sock.accept()
+        res = greenio.socket_connect(sock.fd)
+        if res is None:
+            return
+        connsock, addr = res
         logger.info('connection from %s:%d' % addr)
         self.add(connsock)
         self._fire_handlers(self._chandlers, connsock, addr)
