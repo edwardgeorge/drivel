@@ -4,7 +4,7 @@ import logging
 import eventlet
 
 from drivel.event import EventManager, RETURN_SUB
-from drivel.messaging.connections import Connections
+from drivel.messaging.connections import EventedConnections as Connections
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class Broker(object):
         self.name = name
         self._mqueue = eventlet.Queue()
         self.events = EventManager(id, self)
-        self.connections = Connections(name, id)
+        self.connections = Connections(name, id, self._handle_msg)
         self.subscriptions = {}
         self.remote_subs = {}
         self.remote_seen = set()
@@ -26,38 +26,15 @@ class Broker(object):
         self.BROADCAST = self.connections.ALL
         self.SUB_DISCOVERY = SUB_DISCOVERY
         self.SUB_BROADCAST = SUB_BROADCAST
-        # process control
-        self.started = False
-        self.single_process = True
-        self.continue_listening = True
-        self.continue_processing = True
-        self._process_gt = None
-        self._listen_gt = None
-        self._listen_and_process_gt = None
         # metrics
         self.msgs_processed = 0
 
+    def _handle_msg(self, senderid, data):
+        eid, sub, msg = data
+        eventid = (senderid, eid)
+        self.process_msg(eventid, sub, msg)
+
     def start(self):
-        if self.single_process:
-            if bool(self._listen_and_process_gt):
-                return
-            if bool(self._process_gt):
-                self._process_gt.kill()
-            if bool(self._listen_gt):
-                self._listen_gt.kill()
-            l = eventlet.spawn(self.listen_and_process)
-            self._listen_and_process_gt = l
-            l.link(self._ended, 'listen_and_process')
-        else:
-            if bool(self._listen_and_process_gt):
-                self._listen_and_process_gt.kill()
-            if not bool(self._process_gt):
-                p = self._process_gt = eventlet.spawn(self.process)
-                p.link(self._ended, 'process')
-            if not bool(self._listen_gt):
-                l = self._listen_gt = eventlet.spawn(self.listen)
-                l.link(self._ended, 'listen')
-        self.started = True
         self.discover_subscriptions()
 
     def discover_subscriptions(self, from_=None):
@@ -77,36 +54,12 @@ class Broker(object):
             self.remote_subs.setdefault(sub, set()).add(remote_id)
         self.remote_seen.add(remote_id)
 
-    def switch(self, single_process):
-        if not isinstance(single_process, bool):
-            raise TypeError()
-        if self.single_process != single_process:
-            self.single_process = single_process
-        self.start()
-
-    def _ended(self, gt, pname):
-        pass
-
     def subscribe(self, key, queue):
         self.subscriptions[key] = queue
-        if self.started:
-            self.handle_discovery_request(None)
+        self.handle_discovery_request(None)
 
     def unsubscribe(self, key):
         self.subscriptions.pop(key, None)
-
-    def process(self):
-        #while self.continue_processing:
-        while True:
-            try:
-                self.process_one()
-            except Exception, e:
-                logger.exception('error in process: %s' % (e, ))
-
-    def process_one(self):
-        eventid, subscription, message = self._mqueue.get()
-        logger.debug('msg process: %r, %r' % (eventid, subscription))
-        self.process_msg(eventid, subscription, message)
 
     def process_msg(self, eventid, subscription, message):
         self.msgs_processed += 1
@@ -126,36 +79,6 @@ class Broker(object):
             #logger.debug('%s received message for unknown subscription: %s' %
                 #(self.name, subscription))
             pass
-
-    def process_now(self, message):
-        try:
-            self.process_msg(*message)
-        except Exception, e:
-            logger.exception('error in process_now: %s' % (e, ))
-
-    def listen(self):
-        #while self.continue_listening:
-        while True:
-            try:
-                self.listen_one()
-            except Exception, e:
-                logger.error('error in listen: %s' % (e, ))
-
-    def listen_and_process(self):
-        #while self.continue_listening:
-        while True:
-            try:
-                self.process_msg(*self.listen_one(False))
-            except Exception, e:
-                logger.error('error in listen_and_process: %s' % (e, ))
-
-    def listen_one(self, enqueue=True):
-        senderid, (eid, sub, msg) = self.connections.get()
-        eventid = (senderid, eid)
-        if enqueue:
-            self._mqueue.put((eventid, sub, msg))
-        else:
-            return eventid, sub, msg
 
     def stats(self):
         return {

@@ -9,6 +9,7 @@ from eventlet.event import Event
 from eventlet import greenio
 from eventlet.green import select
 from eventlet import hubs
+import greenlet
 
 from drivel.messaging.pyframed import Messaging, EOF
 from drivel.utils.contextmanagers import EventWatch, EventReady
@@ -202,12 +203,12 @@ class BaseConnections(object):
 
 class EventedConnections(BaseConnections):
     def __init__(self, name, ownid, handler):
-        super(EventedConnections, self).__init__(self, name, ownid)
+        super(EventedConnections, self).__init__(name, ownid)
         self._conn_listeners = {}
         self.handler = handler
 
     def _add(self, msgn, target=None):
-        super(EventedConnections, self)._add(self, msgn, target=target)
+        super(EventedConnections, self)._add(msgn, target=target)
         hub = hubs.get_hub()
         fd = msgn.fileno()
         listener = hub.add(hub.READ, msgn.fileno(), self._conn_read)
@@ -227,7 +228,9 @@ class EventedConnections(BaseConnections):
             self._register_target(name, msgn)
             self._register_target(senderid, msgn)
             if self.filter(data):
-                eventlet.spawn_n(self.handler, senderid, data).switch()
+                g = greenlet.greenlet(self.handler,
+                                      parent=hubs.get_hub().greenlet)
+                g.switch(senderid, data)
 
     def shutdown(self):
         listeners = self._conn_listeners
