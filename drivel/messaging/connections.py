@@ -223,7 +223,7 @@ class EventedConnections(BaseConnections):
             self._register_target(name, msgn)
             self._register_target(senderid, msgn)
             if self.filter(data):
-                self.handler(senderid, data)
+                eventlet.spawn_n(self.handler, senderid, data).switch()
 
     def shutdown(self):
         listeners = self._conn_listeners
