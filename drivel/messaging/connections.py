@@ -176,7 +176,7 @@ class BaseConnections(object):
 
     def _fd_connect(self, fd):
         sock, hublistener = self._fd_listeners[fd]
-        res = greenio.socket_connect(sock.fd)
+        res = greenio.socket_accept(sock.fd)
         if res is None:
             return
         connsock, addr = res
