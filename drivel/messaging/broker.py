@@ -19,6 +19,7 @@ class Broker(object):
         self._mqueue = eventlet.Queue()
         self.events = EventManager(id, self)
         self.connections = Connections(name, id, self._handle_msg)
+        self.connections.add_connect_handler(self._handle_connect)
         self.subscriptions = {}
         self.remote_subs = {}
         self.remote_seen = set()
@@ -34,7 +35,7 @@ class Broker(object):
         eventid = (senderid, eid)
         self.process_msg(eventid, sub, msg)
 
-    def start(self):
+    def _handle_connect(self, sock, addr):
         self.discover_subscriptions()
 
     def discover_subscriptions(self, from_=None):
