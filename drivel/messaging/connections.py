@@ -223,14 +223,18 @@ class EventedConnections(BaseConnections):
             return
         if not r:
             self._disconnected(msgn, None)
+        g = greenlet.greenlet(self._conn_handle_msgs,
+                              parent=hubs.get_hub().greenlet)
+        # switch immediately, do not schedule timer
+        g.switch(msgn)
+
+    def _conn_handle_msgs(self, msgn):
         while msgn.peek():
             name, senderid, data = msgn.wait(_do_recv=False)
             self._register_target(name, msgn)
             self._register_target(senderid, msgn)
             if self.filter(data):
-                g = greenlet.greenlet(self.handler,
-                                      parent=hubs.get_hub().greenlet)
-                g.switch(senderid, data)
+                self.handler(senderid, data)
 
     def shutdown(self):
         listeners = self._conn_listeners
