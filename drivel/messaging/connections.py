@@ -38,7 +38,7 @@ class ConnectionClosed(ConnectionError):
         super(ConnectionClosed, self).__init__(sock, None, aliases)
 
 
-class Connections(object):
+class BaseConnections(object):
     def __init__(self, name, ownid):
         self.name = name
         self.id = ownid
@@ -48,9 +48,6 @@ class Connections(object):
         self._targets = {}
         self._dhandlers = []
         self._chandlers = []
-        self._get_ready = []
-        self._event = Event()
-        self._update_event = Event()
         self.ALL = SEND_TO_ALL
 
     # public api
@@ -187,22 +184,68 @@ class Connections(object):
         self._sockets.append(msgn)
         if target is not None:
             self._register_target(target, msgn)
-        if not self._event.ready():
-            self._event.send(True)
-        if not self._update_event.ready():
-            self._update_event.send(True)
 
     def _names_for_connection(self, conn):
         return [k for k, v in self._targets.items() if conn in v]
 
-    def _select_for_read(self, sockets, timeout=None):
+    def _send_to(self, msgn, data):
         try:
-            return select.select(sockets, [], [], timeout=timeout)
-        except ValueError:
-            for i in self._sockets:
-                if i.fileno() == -1:
-                    self._sockets.remove(i)
-            return select.select(sockets, [], [], timeout=timeout)
+            msgn.send_concurrent((self.name, self.id, data))
+        except IOError, e:
+            self._disconnected(msgn, e.errno)
+            raise ConnectionError(msgn, e.errno, None)
+
+
+class EventedConnections(BaseConnections):
+    def __init__(self, name, ownid, handler):
+        super(EventedConnections, self).__init__(self, name, ownid)
+        self._conn_listeners = {}
+        self.handler = handler
+
+    def _add(self, msgn, target=None):
+        super(EventedConnections, self)._add(self, msgn, target=target)
+        hub = hubs.get_hub()
+        fd = msgn.fileno()
+        listener = hub.add(hub.READ, msgn.fileno(), self._conn_read)
+        self._conn_listeners[fd] = (msgn, listener)
+
+    def _conn_read(self, fd):
+        msgn, hublistener = self._conn_listeners[fd]
+        try:
+            r = msgn._do_recv()
+        except IOError, e:
+            self._disconnected(msgn, e.errno)
+            return
+        if not r:
+            self._disconnected(msgn, None)
+        while msgn.peek():
+            name, senderid, data = msgn.wait(_do_recv=False)
+            self._register_target(name, msgn)
+            self._register_target(senderid, msgn)
+            if self.filter(data):
+                self.handler(senderid, data)
+
+    def shutdown(self):
+        listeners = self._conn_listeners
+        self._conn_listeners = {}
+        hub = hubs.get_hub()
+        for msgn, listener in listeners.itervalues():
+            hub.remove(listener)
+        super(EventedConnections, self).shutdown()
+
+    def _disconnected(self, sock, errno=None, data_to_send=None):
+        msgn, hublistener = self._conn_listeners[sock.fileno()]
+        hubs.get_hub().remove(hublistener)
+        super(EventedConnections)._disconnected(
+            sock, errno=errno, data_to_send=data_to_send)
+
+
+class Connections(BaseConnections):
+    def __init__(self, name, ownid):
+        super(Connections, self).__init__(name, ownid)
+        self._get_ready = []
+        self._event = Event()
+        self._update_event = Event()
 
     def get(self):
         self._event.wait()
@@ -239,9 +282,18 @@ class Connections(object):
             self._disconnected(sock, e.errno)
             raise ConnectionError(sock, e.errno, None)
 
-    def _send_to(self, msgn, data):
+    def _add(self, msgn, target=None):
+        super(Connections, self)._add(msgn, target=target)
+        if not self._event.ready():
+            self._event.send(True)
+        if not self._update_event.ready():
+            self._update_event.send(True)
+
+    def _select_for_read(self, sockets, timeout=None):
         try:
-            msgn.send_concurrent((self.name, self.id, data))
-        except IOError, e:
-            self._disconnected(msgn, e.errno)
-            raise ConnectionError(msgn, e.errno, None)
+            return select.select(sockets, [], [], timeout=timeout)
+        except ValueError:
+            for i in self._sockets:
+                if i.fileno() == -1:
+                    self._sockets.remove(i)
+            return select.select(sockets, [], [], timeout=timeout)
